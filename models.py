@@ -56,13 +56,17 @@ def _rows_to_list(rows):
 
 
 def get_db_connection():
-    try:
-        connection = sqlite3.connect(Config.SQLITE_DB_PATH)
-        connection.row_factory = sqlite3.Row
-        return connection
-    except Exception as e:
-        logger.error(f'数据库连接错误: {str(e)}')
-        raise
+    """获取数据库连接 - 委托给 Config 统一处理"""
+    return Config.get_db_connection()
+
+
+def _safe_sync(connection):
+    """写入操作后，安全地将更改推送到 Turso 云数据库"""
+    if Config.is_turso_enabled():
+        try:
+            connection.sync()
+        except Exception:
+            pass
 
 
 # ============ 数据库初始化 ============
@@ -181,10 +185,24 @@ def init_db():
         connection.commit()
         logger.info('✅ 数据库表结构初始化完成')
 
+        # 如果是 Turso，推送本地更改到云端
+        if Config.is_turso_enabled():
+            try:
+                connection.sync()
+                logger.info('✅ 数据已同步到 Turso 云数据库')
+            except Exception as sync_err:
+                logger.warning(f'Turso sync 失败: {sync_err}')
+
         # 自动填充样例数据（当各表为空时）
         try:
             from seed_data import seed_all
             seed_all(connection)
+            # Turso: 推送样例数据到云端
+            if Config.is_turso_enabled():
+                try:
+                    connection.sync()
+                except Exception:
+                    pass
         except Exception as seed_err:
             logger.warning(f'样例数据填充跳过: {seed_err}')
 
@@ -244,6 +262,7 @@ class User:
                 VALUES (?, ?, ?, ?, ?)
             ''', (username, password, role, name or username, avatar or ''))
             connection.commit()
+            _safe_sync(connection)
             return cursor.lastrowid
         finally:
             connection.close()
@@ -297,6 +316,7 @@ class User:
                 params.append(user_id)
                 cursor.execute(f'UPDATE users SET {", ".join(updates)} WHERE id=?', params)
                 connection.commit()
+            _safe_sync(connection)
             return user_id
         finally:
             connection.close()
@@ -308,6 +328,7 @@ class User:
             cursor = connection.cursor()
             cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
             connection.commit()
+            _safe_sync(connection)
             return cursor.rowcount > 0
         finally:
             connection.close()
@@ -371,6 +392,7 @@ class Personnel:
             ''', (name, gender, birth_date, id_number, phone, email,
                   region, address, occupation, organization, remark, category))
             connection.commit()
+            _safe_sync(connection)
             return cursor.lastrowid
         finally:
             connection.close()
@@ -395,6 +417,7 @@ class Personnel:
                 params.append(person_id)
                 cursor.execute(f'UPDATE personnel SET {", ".join(updates)} WHERE id=?', params)
                 connection.commit()
+            _safe_sync(connection)
             return person_id
         finally:
             connection.close()
@@ -406,6 +429,7 @@ class Personnel:
             cursor = connection.cursor()
             cursor.execute('DELETE FROM personnel WHERE id = ?', (person_id,))
             connection.commit()
+            _safe_sync(connection)
             return cursor.rowcount > 0
         finally:
             connection.close()
@@ -469,6 +493,7 @@ class Policy:
             ''', (title, issuer, publish_date, doc_number, summary,
                   attachment_path, category, status))
             connection.commit()
+            _safe_sync(connection)
             return cursor.lastrowid
         finally:
             connection.close()
@@ -493,6 +518,7 @@ class Policy:
                 params.append(policy_id)
                 cursor.execute(f'UPDATE policy SET {", ".join(updates)} WHERE id=?', params)
                 connection.commit()
+            _safe_sync(connection)
             return policy_id
         finally:
             connection.close()
@@ -504,6 +530,7 @@ class Policy:
             cursor = connection.cursor()
             cursor.execute('DELETE FROM policy WHERE id = ?', (policy_id,))
             connection.commit()
+            _safe_sync(connection)
             return cursor.rowcount > 0
         finally:
             connection.close()
@@ -569,6 +596,7 @@ class Activity:
             ''', (name, activity_type, parsed_start, parsed_end, location,
                   organizer, max_participants, status, description))
             connection.commit()
+            _safe_sync(connection)
             return cursor.lastrowid
         finally:
             connection.close()
@@ -597,6 +625,7 @@ class Activity:
                 params.append(activity_id)
                 cursor.execute(f'UPDATE activity SET {", ".join(updates)} WHERE id=?', params)
                 connection.commit()
+            _safe_sync(connection)
             return activity_id
         finally:
             connection.close()
@@ -608,6 +637,7 @@ class Activity:
             cursor = connection.cursor()
             cursor.execute('DELETE FROM activity WHERE id = ?', (activity_id,))
             connection.commit()
+            _safe_sync(connection)
             return cursor.rowcount > 0
         finally:
             connection.close()
@@ -642,6 +672,7 @@ class Diary:
                 )
             ''')
             connection.commit()
+            _safe_sync(connection)
         finally:
             connection.close()
 
@@ -723,6 +754,7 @@ class Diary:
                 data.get('attachments', '')
             ))
             connection.commit()
+            _safe_sync(connection)
             return cursor.lastrowid
         finally:
             connection.close()
@@ -749,6 +781,7 @@ class Diary:
                 params.append(diary_id)
                 cursor.execute(f'UPDATE diaries SET {", ".join(updates)} WHERE id=?', params)
                 connection.commit()
+            _safe_sync(connection)
             return diary_id
         finally:
             connection.close()
@@ -760,6 +793,7 @@ class Diary:
             cursor = connection.cursor()
             cursor.execute('DELETE FROM diaries WHERE id = ?', (diary_id,))
             connection.commit()
+            _safe_sync(connection)
             return cursor.rowcount > 0
         finally:
             connection.close()

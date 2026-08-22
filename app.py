@@ -1215,6 +1215,9 @@ def serve_static(path):
 
 if __name__ == '__main__':
     logger.info('🚀 港澳台侨管理库系统后端启动')
-    logger.info(f'📦 数据库配置: SQLite - {Config.SQLITE_DB_PATH}')
+    if Config.is_turso_enabled():
+        logger.info('📦 数据库配置: Turso 云数据库')
+    else:
+        logger.info(f'📦 数据库配置: SQLite - {Config.SQLITE_DB_PATH}')
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
