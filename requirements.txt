@@ -2,5 +2,5 @@ flask==3.0.0
 flask-cors==4.0.0
 pyjwt==2.8.0
 gunicorn==21.2.0
-libsql-experimental
+libsql-experimental==0.0.55
 requests
