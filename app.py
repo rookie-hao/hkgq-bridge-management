@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from functools import wraps
 from config import Config
-from models import init_db, User, Personnel, Policy, Activity, Diary
+from models import init_db, User, Personnel, Policy, Activity, Diary, SystemConfig
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -1475,6 +1475,68 @@ def serve_index():
 def serve_uploads(filename):
     """提供上传文件（头像等）的静态访问"""
     return send_from_directory(UPLOAD_FOLDER, filename)
+
+
+
+# ============ 系统配置 API ============
+
+@app.route('/vue-admin-template/system/config', methods=['GET'])
+def get_system_config():
+    """获取系统配置（公开接口，登录页需要显示系统名称）"""
+    try:
+        config = SystemConfig.get_all()
+        return jsonify({"code": 20000, "data": config})
+    except Exception as e:
+        logger.error(f'获取系统配置失败: {str(e)}')
+        return jsonify({"code": 50000, "message": "获取配置失败"})
+
+
+@app.route('/vue-admin-template/system/config', methods=['PUT'])
+@token_required
+def update_system_config(payload):
+    """更新系统配置（仅管理员）"""
+    try:
+        if payload.get('role') != 'admin':
+            return jsonify({"code": 50000, "message": "权限不足"})
+        data = request.get_json() or {}
+        allowed_keys = {'system_name', 'system_subtitle', 'sidebar_title', 'logo_text', 'logo_image'}
+        updates = {k: v for k, v in data.items() if k in allowed_keys}
+        if not updates:
+            return jsonify({"code": 50000, "message": "无可更新的字段"})
+        SystemConfig.set_many(updates)
+        config = SystemConfig.get_all()
+        return jsonify({"code": 20000, "data": config})
+    except Exception as e:
+        logger.error(f'更新系统配置失败: {str(e)}')
+        return jsonify({"code": 50000, "message": "更新失败"})
+
+
+@app.route('/vue-admin-template/system/upload-logo', methods=['POST'])
+@token_required
+def upload_logo(payload):
+    """上传系统 Logo 图片"""
+    try:
+        if payload.get('role') != 'admin':
+            return jsonify({"code": 50000, "message": "权限不足"})
+        if 'file' not in request.files:
+            return jsonify({"code": 50000, "message": "未选择文件"})
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"code": 50000, "message": "文件名为空"})
+        allowed = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+        if ext not in allowed:
+            return jsonify({"code": 50000, "message": "只支持图片格式"})
+        filename = f"system_logo.{ext}"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        logo_url = f"/vue-admin-template/uploads/{filename}"
+        SystemConfig.set_value('logo_image', logo_url)
+        config = SystemConfig.get_all()
+        return jsonify({"code": 20000, "data": config})
+    except Exception as e:
+        logger.error(f'上传 Logo 失败: {str(e)}')
+        return jsonify({"code": 50000, "message": "上传失败"})
 
 @app.route('/<path:path>')
 def serve_static(path):

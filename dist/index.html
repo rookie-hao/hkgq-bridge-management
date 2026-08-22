@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>港澳台侨管库系统</title>
+  <title>{{ systemConfig.system_name }}</title>
   <link rel="stylesheet" href="https://unpkg.com/element-ui@2.15.14/lib/theme-chalk/index.css">
   <style>
     /* ========== 全局样式 ========== */
@@ -810,10 +810,10 @@
   <div v-if="isLoginPage" class="login-container">
     <div class="login-card">
       <div class="login-logo">
-        <div class="icon-wrap">侨</div>
+        <div class="icon-wrap" v-if="!systemConfig.logo_image">{{ systemConfig.logo_text || "侨" }}</div><img v-if="systemConfig.logo_image" :src="systemConfig.logo_image" style="width:64px;height:64px;border-radius:12px;object-fit:cover;" />
       </div>
-      <div class="login-title">港澳台侨管库系统</div>
-      <div class="login-subtitle">Hong Kong, Macau, Taiwan & Overseas Chinese Management System</div>
+      <div class="login-title">{{ systemConfig.system_name }}</div>
+      <div class="login-subtitle">{{ systemConfig.system_subtitle }}</div>
       <el-form :model="loginForm" :rules="loginRules" ref="loginForm" @submit.prevent.native="handleLogin">
         <el-form-item prop="username">
           <el-input v-model="loginForm.username" prefix-icon="el-icon-user" placeholder="请输入用户名" autocomplete="off"></el-input>
@@ -835,8 +835,8 @@
     <!-- 侧边栏 -->
     <div class="sidebar-container" :class="{collapsed: sidebarCollapsed}">
       <div class="sidebar-logo">
-        <div class="logo-icon">侨</div>
-        <span class="logo-text">港澳台侨管库</span>
+        <div class="logo-icon" v-if="!systemConfig.logo_image">{{ systemConfig.logo_text || "侨" }}</div><img v-if="systemConfig.logo_image" :src="systemConfig.logo_image" class="logo-img" style="width:36px;height:36px;border-radius:6px;object-fit:cover;" />
+        <span class="logo-text">{{ systemConfig.sidebar_title || "港澳台侨管库" }}</span>
       </div>
       <el-menu
         class="sidebar-menu"
@@ -1608,6 +1608,36 @@
                 <el-button type="primary" :loading="profileSaving" @click="saveProfile">保存修改</el-button>
               </el-form-item>
             </el-form>
+
+            <template v-if="isAdmin">
+              <el-divider content-position="left">系统设置</el-divider>
+              <el-form :model="systemConfigForm" ref="systemConfigForm" label-width="100px" size="small" style="max-width:450px;">
+                <el-form-item label="系统名称">
+                  <el-input v-model="systemConfigForm.system_name" placeholder="如：港澳台侨管库系统"></el-input>
+                </el-form-item>
+                <el-form-item label="副标题">
+                  <el-input v-model="systemConfigForm.system_subtitle" placeholder="英文副标题"></el-input>
+                </el-form-item>
+                <el-form-item label="侧边栏标题">
+                  <el-input v-model="systemConfigForm.sidebar_title" placeholder="如：港澳台侨管库"></el-input>
+                </el-form-item>
+                <el-form-item label="Logo 文字">
+                  <el-input v-model="systemConfigForm.logo_text" placeholder="侧边栏图标文字，如：侨" maxlength="4"></el-input>
+                </el-form-item>
+                <el-form-item label="系统 Logo">
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <img v-if="systemConfigForm.logo_image" :src="systemConfigForm.logo_image" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid #eee;" />
+                    <label class="el-button el-button--mini">
+                      上传 Logo
+                      <input type="file" accept="image/*" @change="handleLogoUpload" style="display:none;" />
+                    </label>
+                  </div>
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="systemConfigSaving" @click="saveSystemConfig">保存系统设置</el-button>
+                </el-form-item>
+              </el-form>
+            </template>
           </div>
         </template>
 
@@ -1731,7 +1761,7 @@
         // 全局
         isLoginPage: true,
         sidebarCollapsed: false,
-        currentRoute: '/dashboard',
+        currentRoute: '',
         userInfo: {},
         loginForm: { username: '', password: '' },
         loginRules: {
@@ -1784,6 +1814,9 @@
 
         // 图表实例
         _charts: {},
+        systemConfigSaving: false,
+        systemConfigForm: { system_name: "", system_subtitle: "", sidebar_title: "", logo_text: "", logo_image: "" },
+        systemConfig: { system_name: "港澳台侨管库系统", system_subtitle: "Hong Kong, Macau, Taiwan & Overseas Chinese Management System", sidebar_title: "港澳台侨管库", logo_text: "侨", logo_image: "" },
 
         // ========== AI Chat ==========
         chatModel: 'deepseek-chat',
@@ -1857,6 +1890,7 @@
     },
 
     created: function() {
+      this.loadSystemConfig();
       this.checkAuth();
       var self = this;
       window.addEventListener('hashchange', function() {
@@ -1922,6 +1956,18 @@
           window.location.hash = '#/profile';
           this.currentRoute = '/profile';
         }
+      },
+
+
+      // ---------- 系统配置 ----------
+      loadSystemConfig: function() {
+        var self = this;
+        api.get(API_PREFIX + '/system/config').then(function(res) {
+          if (res.code === 20000 && res.data) {
+            self.systemConfig = res.data;
+            document.title = res.data.system_name || document.title;
+          }
+        }).catch(function() {});
       },
 
       // ---------- 登录 ----------
@@ -2158,6 +2204,58 @@
           }]
         });
         window.addEventListener('resize', function() { chart.resize(); });
+      },
+
+
+      // ---------- 系统配置管理 ----------
+      saveSystemConfig: function() {
+        var self = this;
+        this.systemConfigSaving = true;
+        api.put(API_PREFIX + '/system/config', this.systemConfigForm).then(function(res) {
+          self.systemConfigSaving = false;
+          if (res.code === 20000) {
+            self.systemConfig = res.data;
+            document.title = res.data.system_name || document.title;
+            self.$message.success('系统设置已保存');
+          } else {
+            self.$message.error(res.message || '保存失败');
+          }
+        }).catch(function() {
+          self.systemConfigSaving = false;
+          self.$message.error('保存失败');
+        });
+      },
+
+      handleLogoUpload: function(event) {
+        var self = this;
+        var file = event.target.files[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          this.$message.error('图片大小不能超过 2MB');
+          return;
+        }
+        var formData = new FormData();
+        formData.append('file', file);
+        var token = getToken();
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API_PREFIX + '/system/upload-logo', true);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.onload = function() {
+          try {
+            var res = JSON.parse(xhr.responseText);
+            if (res.code === 20000 && res.data) {
+              self.systemConfig = res.data;
+              self.systemConfigForm.logo_image = res.data.logo_image || '';
+              self.$message.success('Logo 上传成功');
+            } else {
+              self.$message.error(res.message || '上传失败');
+            }
+          } catch(e) {
+            self.$message.error('上传失败');
+          }
+        };
+        xhr.onerror = function() { self.$message.error('上传失败'); };
+        xhr.send(formData);
       },
 
       // ---------- 人员管理 ----------

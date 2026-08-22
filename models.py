@@ -183,6 +183,8 @@ def init_db():
             ])
 
         connection.commit()
+        # 系统配置表
+        SystemConfig.init_table()
         logger.info('✅ 数据库表结构初始化完成')
 
         # 如果是 Turso，推送本地更改到云端
@@ -817,5 +819,83 @@ class Diary:
                 params.append(user_id)
             cursor.execute(f'SELECT COUNT(*) as total FROM diaries {where}', params)
             return cursor.fetchone()['total']
+        finally:
+            connection.close()
+
+
+# ============ SystemConfig 模型 ============
+
+class SystemConfig:
+    """系统配置模型 - 存储系统名称、Logo 等可配置项"""
+
+    @staticmethod
+    def init_table():
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_config (
+                    key VARCHAR(100) PRIMARY KEY,
+                    value TEXT DEFAULT '',
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # 插入默认配置
+            defaults = [
+                ('system_name', '港澳台侨管库系统'),
+                ('system_subtitle', 'Hong Kong, Macau, Taiwan & Overseas Chinese Management System'),
+                ('sidebar_title', '港澳台侨管库'),
+                ('logo_text', '侨'),
+                ('logo_image', ''),
+            ]
+            for key, value in defaults:
+                cursor.execute('INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)', (key, value))
+            connection.commit()
+            _safe_sync(connection)
+        finally:
+            connection.close()
+
+    @staticmethod
+    def get_all():
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('SELECT key, value FROM system_config')
+            rows = cursor.fetchall()
+            return {row['key']: row['value'] for row in rows}
+        finally:
+            connection.close()
+
+    @staticmethod
+    def set_value(key, value):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('''
+                INSERT INTO system_config (key, value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+            ''', (key, value, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            connection.commit()
+            _safe_sync(connection)
+            return True
+        finally:
+            connection.close()
+
+    @staticmethod
+    def set_many(config_dict):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            for key, value in config_dict.items():
+                cursor.execute('''
+                    INSERT INTO system_config (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+                ''', (key, value, now))
+            connection.commit()
+            _safe_sync(connection)
+            return True
         finally:
             connection.close()
