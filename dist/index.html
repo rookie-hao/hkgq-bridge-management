@@ -235,7 +235,7 @@
       padding-bottom: 10px;
       border-bottom: 1px solid #eee;
     }
-    .chart-container { width: 100%; height: 320px; }
+    .chart-container { width: 100%; height: 320px; min-height: 320px; position: relative; }
 
     /* 最近日记卡片 */
     .recent-diary-card {
@@ -1869,9 +1869,7 @@
 
     watch: {
       currentRoute: function(val) {
-        if (val === '/dashboard') {
-          this.$nextTick(function() { this.loadDashboard(); }.bind(this));
-        } else if (val === '/personnel') {
+        if (val === '/personnel') {
           this.loadPersonnel();
         } else if (val === '/policy') {
           this.loadPolicy();
@@ -1942,6 +1940,11 @@
           hash = '/dashboard';
         }
         this.currentRoute = hash;
+        // 直接调用对应路由的数据加载，确保数据及时刷新
+        var self = this;
+        if (hash === '/dashboard') {
+          setTimeout(function() { self.loadDashboard(); }, 50);
+        }
       },
 
       handleMenuSelect: function(index) {
