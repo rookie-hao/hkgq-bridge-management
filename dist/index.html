@@ -1857,6 +1857,9 @@
             if (res.code === 20000 && res.data) {
               self.userInfo = res.data;
               self.isLoginPage = false;
+              if (!window.location.hash || window.location.hash === '#/login' || window.location.hash === '#') {
+                window.location.hash = '#/dashboard';
+              }
               self.handleRouteChange();
             } else {
               removeToken();
