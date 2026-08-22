@@ -849,7 +849,12 @@ class SystemConfig:
                 ('logo_image', ''),
             ]
             for key, value in defaults:
-                cursor.execute('INSERT OR IGNORE INTO system_config (key, value) VALUES (?, ?)', (key, value))
+                cursor.execute(
+                    'INSERT INTO system_config (key, value) VALUES (?, ?) '
+                    'ON CONFLICT(key) DO UPDATE SET value=excluded.value '
+                    'WHERE system_config.value = \'\' OR system_config.value IS NULL',
+                    (key, value)
+                )
             connection.commit()
             _safe_sync(connection)
         finally:
