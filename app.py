@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from functools import wraps
 from config import Config
-from models import init_db, User, Personnel, Policy, Activity
+from models import init_db, User, Personnel, Policy, Activity, Diary
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -248,14 +248,12 @@ def update_user(payload):
         if not target_user:
             return jsonify({'code': 50004, 'message': '用户不存在'})
 
-        # 禁止修改 admin 管理员账号的用户名和角色
         if target_user['username'] == 'admin':
             if data.get('username') and data.get('username') != 'admin':
                 return jsonify({'code': 50006, 'message': '无法修改 admin 管理员用户名'})
             if data.get('role') and data.get('role') != 'admin':
                 return jsonify({'code': 50007, 'message': '无法修改 admin 管理员角色'})
 
-        # 检查姓名是否被其他用户使用
         new_name = data.get('name')
         if new_name and new_name != target_user.get('name'):
             existing_user = User.find_by_name(new_name)
@@ -282,7 +280,6 @@ def delete_user(payload):
         if not user_id:
             return jsonify({'code': 50003, 'message': '用户ID不能为空'})
 
-        # 禁止删除 admin 管理员账号
         conn = Config.get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT username FROM users WHERE id = ?', (user_id,))
@@ -392,7 +389,8 @@ def create_personnel(payload):
             address=data.get('address', ''),
             occupation=data.get('occupation', ''),
             organization=data.get('organization', ''),
-            remark=data.get('remark', '')
+            remark=data.get('remark', ''),
+            category=data.get('category', '')
         )
         logger.info(f'✅ 新增人员成功 - ID:{person_id}, 姓名:{name}')
         return jsonify({'code': 20000, 'data': {'id': person_id}})
@@ -417,7 +415,7 @@ def update_personnel(payload):
 
         update_fields = {}
         for field in ['name', 'gender', 'birth_date', 'id_number', 'phone', 'email',
-                      'region', 'address', 'occupation', 'organization', 'remark']:
+                      'region', 'address', 'occupation', 'organization', 'remark', 'category']:
             if field in data:
                 update_fields[field] = data[field]
 
@@ -685,6 +683,149 @@ def delete_activity(payload):
         return jsonify({'code': 50000, 'message': f'删除活动失败: {str(e)}'}), 500
 
 
+# ============ 工作日记管理 API ============
+
+@app.route('/vue-admin-template/diary/list', methods=['GET'])
+@token_required
+def get_diary_list(payload):
+    """获取工作日记列表（支持搜索、类型筛选、日期范围筛选、分页）"""
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('limit', 10))
+        keyword = request.args.get('keyword', '')
+        work_type = request.args.get('work_type', '')
+        start_date = request.args.get('start_date', '')
+        end_date = request.args.get('end_date', '')
+
+        result = Diary.find_all(
+            page=page,
+            page_size=page_size,
+            keyword=keyword,
+            work_type=work_type,
+            start_date=start_date,
+            end_date=end_date
+        )
+        return jsonify({'code': 20000, 'data': result})
+    except Exception as e:
+        logger.error(f'❌ 获取日记列表失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'获取日记列表失败: {str(e)}'}), 500
+
+
+@app.route('/vue-admin-template/diary/detail', methods=['GET'])
+@token_required
+def get_diary_detail(payload):
+    """获取工作日记详情"""
+    try:
+        diary_id = request.args.get('id')
+        if not diary_id:
+            return jsonify({'code': 50003, 'message': '日记ID不能为空'})
+
+        diary = Diary.find_by_id(int(diary_id))
+        if diary:
+            return jsonify({'code': 20000, 'data': diary})
+        return jsonify({'code': 50004, 'message': '日记不存在'})
+    except Exception as e:
+        logger.error(f'❌ 获取日记详情失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'获取日记详情失败: {str(e)}'}), 500
+
+
+@app.route('/vue-admin-template/diary/create', methods=['POST'])
+@token_required
+def create_diary(payload):
+    """创建工作日记（需登录）"""
+    try:
+        data = request.get_json()
+        title = data.get('title', '').strip() if data.get('title') else ''
+        if not title:
+            return jsonify({'code': 50002, 'message': '标题不能为空'})
+
+        data['user_id'] = payload['user_id']
+        diary_id = Diary.create(data)
+        logger.info(f'✅ 新增工作日记成功 - ID:{diary_id}, 标题:{title}')
+        return jsonify({'code': 20000, 'data': {'id': diary_id}})
+    except Exception as e:
+        logger.error(f'❌ 新增工作日记失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'新增工作日记失败: {str(e)}'}), 500
+
+
+@app.route('/vue-admin-template/diary/update', methods=['POST'])
+@token_required
+def update_diary(payload):
+    """更新工作日记"""
+    try:
+        data = request.get_json()
+        diary_id = data.get('id')
+        if not diary_id:
+            return jsonify({'code': 50003, 'message': '日记ID不能为空'})
+
+        diary = Diary.find_by_id(int(diary_id))
+        if not diary:
+            return jsonify({'code': 50004, 'message': '日记不存在'})
+
+        update_data = {}
+        for field in ['title', 'content', 'work_type', 'work_date',
+                      'location', 'participants', 'status', 'attachments']:
+            if field in data:
+                update_data[field] = data[field]
+
+        Diary.update(int(diary_id), update_data)
+        logger.info(f'✅ 更新工作日记成功 - ID:{diary_id}')
+        return jsonify({'code': 20000, 'data': 'success'})
+    except Exception as e:
+        logger.error(f'❌ 更新工作日记失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'更新工作日记失败: {str(e)}'}), 500
+
+
+@app.route('/vue-admin-template/diary/delete', methods=['POST'])
+@token_required
+def delete_diary(payload):
+    """删除工作日记"""
+    try:
+        data = request.get_json()
+        diary_id = data.get('id')
+        if not diary_id:
+            return jsonify({'code': 50003, 'message': '日记ID不能为空'})
+
+        diary = Diary.find_by_id(int(diary_id))
+        if not diary:
+            return jsonify({'code': 50004, 'message': '日记不存在'})
+
+        if Diary.delete(int(diary_id)):
+            logger.info(f'✅ 删除工作日记成功 - ID:{diary_id}')
+            return jsonify({'code': 20000, 'data': 'success'})
+        return jsonify({'code': 50004, 'message': '删除失败'})
+    except Exception as e:
+        logger.error(f'❌ 删除工作日记失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'删除工作日记失败: {str(e)}'}), 500
+
+
+@app.route('/vue-admin-template/diary/my', methods=['GET'])
+@token_required
+def get_my_diaries(payload):
+    """获取当前用户的日记列表"""
+    try:
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('limit', 10))
+        keyword = request.args.get('keyword', '')
+        work_type = request.args.get('work_type', '')
+        start_date = request.args.get('start_date', '')
+        end_date = request.args.get('end_date', '')
+
+        result = Diary.find_all(
+            page=page,
+            page_size=page_size,
+            keyword=keyword,
+            work_type=work_type,
+            user_id=payload['user_id'],
+            start_date=start_date,
+            end_date=end_date
+        )
+        return jsonify({'code': 20000, 'data': result})
+    except Exception as e:
+        logger.error(f'❌ 获取我的日记失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'获取我的日记失败: {str(e)}'}), 500
+
+
 # ============ 统计看板 API ============
 
 @app.route('/vue-admin-template/dashboard/overview', methods=['GET'])
@@ -706,6 +847,9 @@ def get_dashboard_overview(payload):
 
         cursor.execute('SELECT COUNT(*) as count FROM activity')
         activity_count = dict(cursor.fetchone())['count']
+
+        cursor.execute('SELECT COUNT(*) as count FROM diaries')
+        diary_count = dict(cursor.fetchone())['count']
 
         cursor.execute('''
             SELECT region, COUNT(*) as count FROM personnel
@@ -749,6 +893,13 @@ def get_dashboard_overview(payload):
         cursor.execute("SELECT COUNT(*) as count FROM activity WHERE status = '进行中'")
         ongoing_activity_count = dict(cursor.fetchone())['count']
 
+        # 日记统计
+        cursor.execute('''
+            SELECT work_type, COUNT(*) as count FROM diaries
+            WHERE work_type != '' GROUP BY work_type ORDER BY count DESC
+        ''')
+        diary_type_stats = [dict(r) for r in cursor.fetchall()]
+
         conn.close()
 
         logger.info('✅ 获取统计看板数据成功')
@@ -761,12 +912,14 @@ def get_dashboard_overview(payload):
                 'active_policy_count': active_policy_count,
                 'activity_count': activity_count,
                 'ongoing_activity_count': ongoing_activity_count,
+                'diary_count': diary_count,
                 'region_stats': region_stats,
                 'policy_category_stats': policy_category_stats,
                 'policy_status_stats': policy_status_stats,
                 'activity_type_stats': activity_type_stats,
                 'activity_status_stats': activity_status_stats,
-                'recent_activities': recent_activities
+                'recent_activities': recent_activities,
+                'diary_type_stats': diary_type_stats
             }
         })
     except Exception as e:
@@ -862,6 +1015,62 @@ def get_activity_stats(payload):
         return jsonify({'code': 50000, 'message': f'获取活动统计失败: {str(e)}'}), 500
 
 
+@app.route('/vue-admin-template/dashboard/diary-stats', methods=['GET'])
+@token_required
+def get_diary_stats(payload):
+    """统计看板 - 工作日记统计"""
+    try:
+        conn = Config.get_db_connection()
+        cursor = conn.cursor()
+
+        # 按类型统计
+        cursor.execute('''
+            SELECT work_type, COUNT(*) as count FROM diaries
+            WHERE work_type != '' GROUP BY work_type ORDER BY count DESC
+        ''')
+        type_stats = [dict(r) for r in cursor.fetchall()]
+
+        # 按状态统计
+        cursor.execute('''
+            SELECT status, COUNT(*) as count FROM diaries
+            GROUP BY status ORDER BY count DESC
+        ''')
+        status_stats = [dict(r) for r in cursor.fetchall()]
+
+        # 最近10条日记
+        cursor.execute('''
+            SELECT d.id, d.title, d.work_type, d.work_date, d.location, d.status,
+                   u.name as author_name
+            FROM diaries d
+            LEFT JOIN users u ON d.user_id = u.id
+            ORDER BY d.created_at DESC LIMIT 10
+        ''')
+        recent = [dict(r) for r in cursor.fetchall()]
+
+        # 本月日记数量
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM diaries
+            WHERE work_date >= date('now', 'start of month')
+        ''')
+        monthly_count = dict(cursor.fetchone())['count']
+
+        # 总数量
+        cursor.execute('SELECT COUNT(*) as count FROM diaries')
+        total_count = dict(cursor.fetchone())['count']
+
+        conn.close()
+        return jsonify({'code': 20000, 'data': {
+            'type_stats': type_stats,
+            'status_stats': status_stats,
+            'recent_diaries': recent,
+            'monthly_count': monthly_count,
+            'total_count': total_count
+        }})
+    except Exception as e:
+        logger.error(f'❌ 获取日记统计失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'获取日记统计失败: {str(e)}'}), 500
+
+
 # ============ 数据库信息 API ============
 
 @app.route('/vue-admin-template/db/stats', methods=['GET'])
@@ -883,14 +1092,18 @@ def get_db_stats(payload):
         cursor.execute('SELECT COUNT(*) as count FROM activity')
         activity_count = dict(cursor.fetchone())['count']
 
+        cursor.execute('SELECT COUNT(*) as count FROM diaries')
+        diary_count = dict(cursor.fetchone())['count']
+
         stats = {
             'users': users_count,
             'personnel': personnel_count,
             'policy': policy_count,
-            'activity': activity_count
+            'activity': activity_count,
+            'diaries': diary_count
         }
 
-        logger.info(f'📊 实时统计 - 用户:{users_count}, 人员:{personnel_count}, 政策:{policy_count}, 活动:{activity_count}')
+        logger.info(f'📊 实时统计 - 用户:{users_count}, 人员:{personnel_count}, 政策:{policy_count}, 活动:{activity_count}, 日记:{diary_count}')
         return jsonify({'code': 20000, 'data': stats})
     except Exception as e:
         logger.error(f'❌ 获取数据库统计失败: {str(e)}')
@@ -905,9 +1118,9 @@ def get_db_tables(payload):
     """查看数据库表数据"""
     table_name = request.args.get('table')
     if not table_name:
-        return jsonify({'code': 50003, 'message': '请指定表名 (table=users/personnel/policy/activity)'})
+        return jsonify({'code': 50003, 'message': '请指定表名 (table=users/personnel/policy/activity/diaries)'})
 
-    valid_tables = ['users', 'personnel', 'policy', 'activity']
+    valid_tables = ['users', 'personnel', 'policy', 'activity', 'diaries']
     if table_name not in valid_tables:
         return jsonify({'code': 50003, 'message': f'无效的表名，可选: {valid_tables}'})
 
