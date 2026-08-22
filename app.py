@@ -1489,17 +1489,7 @@ def serve_static(path):
     return jsonify({'code': 404, 'message': 'Not Found'}), 404
 
 
-# ============ 启动入口 ============
-
-if __name__ == '__main__':
-    logger.info('🚀 港澳台侨管理库系统后端启动')
-    if Config.is_turso_enabled():
-        logger.info('📦 数据库配置: Turso 云数据库')
-    else:
-        logger.info(f'📦 数据库配置: SQLite - {Config.SQLITE_DB_PATH}')
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
-
+# ============ 用户头像上传 ============
 
 @app.route('/vue-admin-template/user/upload-avatar', methods=['POST'])
 @token_required
@@ -1533,3 +1523,15 @@ def upload_avatar(payload):
     except Exception as e:
         logger.error(f'❌ 上传头像失败: {str(e)}')
         return jsonify({'code': 50000, 'message': '上传失败'}), 500
+
+
+# ============ 启动入口 ============
+
+if __name__ == '__main__':
+    logger.info('🚀 港澳台侨管理库系统后端启动')
+    if Config.is_turso_enabled():
+        logger.info('📦 数据库配置: Turso 云数据库')
+    else:
+        logger.info(f'📦 数据库配置: SQLite - {Config.SQLITE_DB_PATH}')
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
