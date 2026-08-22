@@ -53,10 +53,20 @@ def decode_token(token):
 # ============ 鉴权装饰器 ============
 
 def token_required(f):
-    """Token 鉴权装饰器"""
+    """Token 鉴权装饰器 - 支持 Authorization: Bearer、X-Token header 和 query param"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.headers.get('X-Token')
+        token = None
+        # 1. 优先检查 Authorization: Bearer <token>
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[7:]
+        # 2. 其次检查 X-Token header
+        if not token:
+            token = request.headers.get('X-Token')
+        # 3. 最后检查 query parameter
+        if not token:
+            token = request.args.get('token')
         if not token:
             return jsonify({'code': 40001, 'message': 'Token 缺失'}), 401
         payload = decode_token(token)
