@@ -2015,6 +2015,17 @@
         api.get(API_PREFIX + '/dashboard/overview').then(function(res) {
           if (res.code === 20000) {
             self.dashboardOverview = res.data || {};
+            // DOM 更新后用 overview 返回的图表数据直接渲染
+            self.$nextTick(function() {
+              var d = self.dashboardOverview;
+              if (typeof echarts !== 'undefined') {
+                if (d.region_chart && d.region_chart.length) self.renderRegionChart(d.region_chart);
+                if (d.policy_chart && d.policy_chart.length) self.renderPolicyChart(d.policy_chart);
+                if (d.activity_chart && d.activity_chart.length) self.renderActivityChart(d.activity_chart);
+                if (d.personnel_chart && d.personnel_chart.length) self.renderPersonnelChart(d.personnel_chart);
+                if (d.diary_chart && d.diary_chart.length) self.renderDiaryChart(d.diary_chart);
+              }
+            });
           }
         }).catch(function() {
           self.dashboardOverview = { personnel_count: 0, policy_count: 0, activity_count: 0, user_count: 0 };
@@ -2027,10 +2038,6 @@
           }
         }).catch(function() {
           self.recentDiaryList = [];
-        });
-
-        this.$nextTick(function() {
-          self.loadDashboardCharts();
         });
       },
 

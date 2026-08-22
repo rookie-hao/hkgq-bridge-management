@@ -18,6 +18,19 @@ logger = logging.getLogger(__name__)
 # 初始化数据库
 init_db()
 
+# 一次性迁移：将旧默认值更新为新默认值
+try:
+    cfg = SystemConfig.get_all()
+    if cfg.get('system_name') == '港澳台侨管库系统':
+        SystemConfig.set_value('system_name', '港澳台侨管理系统')
+    if cfg.get('sidebar_title') == '港澳台侨管库':
+        SystemConfig.set_value('sidebar_title', '港澳台侨管理')
+    if cfg.get('logo_text') == '侨':
+        SystemConfig.set_value('logo_text', '龙岗')
+    logger.info('✅ 系统配置默认值检查完成')
+except Exception as config_err:
+    logger.warning(f'系统配置更新跳过: {config_err}')
+
 
 # ============ 全局错误处理 ============
 
@@ -901,7 +914,34 @@ def get_dashboard_overview(payload):
         ''')
         diary_type_stats = [dict(r) for r in cursor.fetchall()]
 
+        # 人员分类统计
+        cursor.execute('''
+            SELECT category, COUNT(*) as count FROM personnel
+            WHERE category != '' GROUP BY category ORDER BY count DESC
+        ''')
+        personnel_category_stats = [dict(r) for r in cursor.fetchall()]
+
         conn.close()
+
+        # 统一转换为 {name, value} 格式供前端图表使用
+        CATEGORY_LABELS = {
+            'visa': '签证政策', 'residence': '居留政策', 'employment': '就业政策',
+            'education': '教育政策', 'investment': '投资政策', 'social': '社会保障'
+        }
+
+        def to_chart_list(raw_list, key_field, label_map=None):
+            result = []
+            for item in raw_list:
+                raw_name = item.get(key_field, '')
+                label = (label_map or {}).get(raw_name, raw_name)
+                result.append({'name': label, 'value': item.get('count', 0)})
+            return result
+
+        region_chart = to_chart_list(region_stats, 'region')
+        policy_chart = to_chart_list(policy_category_stats, 'category', CATEGORY_LABELS)
+        activity_chart = to_chart_list(activity_type_stats, 'activity_type')
+        personnel_chart = to_chart_list(personnel_category_stats, 'category')
+        diary_chart = to_chart_list(diary_type_stats, 'work_type')
 
         logger.info('✅ 获取统计看板数据成功')
         return jsonify({
@@ -920,7 +960,12 @@ def get_dashboard_overview(payload):
                 'activity_type_stats': activity_type_stats,
                 'activity_status_stats': activity_status_stats,
                 'recent_activities': recent_activities,
-                'diary_type_stats': diary_type_stats
+                'diary_type_stats': diary_type_stats,
+                'region_chart': region_chart,
+                'policy_chart': policy_chart,
+                'activity_chart': activity_chart,
+                'personnel_chart': personnel_chart,
+                'diary_chart': diary_chart
             }
         })
     except Exception as e:

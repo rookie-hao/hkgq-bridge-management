@@ -842,10 +842,10 @@ class SystemConfig:
             ''')
             # 插入默认配置
             defaults = [
-                ('system_name', '港澳台侨管库系统'),
+                ('system_name', '港澳台侨管理系统'),
                 ('system_subtitle', 'Hong Kong, Macau, Taiwan & Overseas Chinese Management System'),
-                ('sidebar_title', '港澳台侨管库'),
-                ('logo_text', '侨'),
+                ('sidebar_title', '港澳台侨管理'),
+                ('logo_text', '龙岗'),
                 ('logo_image', ''),
             ]
             for key, value in defaults:
