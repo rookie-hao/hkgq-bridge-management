@@ -1813,7 +1813,7 @@
         profileSaving: false,
 
         // 图表实例
-        chartInstances: {},
+        // chartInstances removed - using echarts.getInstanceByDom instead
         systemConfigSaving: false,
         systemConfigForm: { system_name: "", system_subtitle: "", sidebar_title: "", logo_text: "", logo_image: "" },
         systemConfig: { system_name: "港澳台侨管库系统", system_subtitle: "Hong Kong, Macau, Taiwan & Overseas Chinese Management System", sidebar_title: "港澳台侨管库", logo_text: "侨", logo_image: "" },
@@ -2116,12 +2116,13 @@
       },
 
       renderRegionChart: function(data) {
-        var self = this;
-        if (!this.$refs.regionChart) { console.warn("[Chart] regionChart ref not found"); return; }
-        console.log("[Chart] rendering region, container size:", this.$refs.regionChart.offsetWidth, "x", this.$refs.regionChart.offsetHeight);
-        if (this.chartInstances.region) this.chartInstances.region.dispose();
-        var chart = echarts.init(this.$refs.regionChart);
-        this.chartInstances.region = chart;
+        var el = this.$refs.regionChart;
+        if (!el) { console.warn("[Chart] regionChart ref not found"); return; }
+        console.log("[Chart] rendering region, container size:", el.offsetWidth, "x", el.offsetHeight);
+        // 清除已有图表
+        var existing = echarts.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = echarts.init(el);
         chart.setOption({
           tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
           legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
@@ -2141,11 +2142,12 @@
       },
 
       renderPolicyChart: function(data) {
-        if (!this.$refs.policyChart) { console.warn("[Chart] policyChart ref not found"); return; }
-        console.log("[Chart] rendering policy, container size:", this.$refs.policyChart.offsetWidth, "x", this.$refs.policyChart.offsetHeight);
-        if (this.chartInstances.policy) this.chartInstances.policy.dispose();
-        var chart = echarts.init(this.$refs.policyChart);
-        this.chartInstances.policy = chart;
+        var el = this.$refs.policyChart;
+        if (!el) { console.warn("[Chart] policyChart ref not found"); return; }
+        console.log("[Chart] rendering policy, container size:", el.offsetWidth, "x", el.offsetHeight);
+        var existing = echarts.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = echarts.init(el);
         chart.setOption({
           tooltip: { trigger: 'axis' },
           grid: { left: 60, right: 20, top: 20, bottom: 40 },
@@ -2165,11 +2167,12 @@
       },
 
       renderActivityChart: function(data) {
-        if (!this.$refs.activityChart) { console.warn("[Chart] activityChart ref not found"); return; }
-        console.log("[Chart] rendering activity, container size:", this.$refs.activityChart.offsetWidth, "x", this.$refs.activityChart.offsetHeight);
-        if (this.chartInstances.activity) this.chartInstances.activity.dispose();
-        var chart = echarts.init(this.$refs.activityChart);
-        this.chartInstances.activity = chart;
+        var el = this.$refs.activityChart;
+        if (!el) { console.warn("[Chart] activityChart ref not found"); return; }
+        console.log("[Chart] rendering activity, container size:", el.offsetWidth, "x", el.offsetHeight);
+        var existing = echarts.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = echarts.init(el);
         chart.setOption({
           tooltip: { trigger: 'axis' },
           grid: { left: 50, right: 20, top: 20, bottom: 40 },
@@ -2191,11 +2194,12 @@
       },
 
       renderPersonnelChart: function(data) {
-        if (!this.$refs.personnelChart) { console.warn("[Chart] personnelChart ref not found"); return; }
-        console.log("[Chart] rendering personnel, container size:", this.$refs.personnelChart.offsetWidth, "x", this.$refs.personnelChart.offsetHeight);
-        if (this.chartInstances.personnel) this.chartInstances.personnel.dispose();
-        var chart = echarts.init(this.$refs.personnelChart);
-        this.chartInstances.personnel = chart;
+        var el = this.$refs.personnelChart;
+        if (!el) { console.warn("[Chart] personnelChart ref not found"); return; }
+        console.log("[Chart] rendering personnel, container size:", el.offsetWidth, "x", el.offsetHeight);
+        var existing = echarts.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = echarts.init(el);
         chart.setOption({
           tooltip: { trigger: 'item' },
           legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
@@ -2215,11 +2219,12 @@
       },
 
       renderDiaryChart: function(data) {
-        if (!this.$refs.diaryChart) { console.warn("[Chart] diaryChart ref not found"); return; }
-        console.log("[Chart] rendering diary, container size:", this.$refs.diaryChart.offsetWidth, "x", this.$refs.diaryChart.offsetHeight);
-        if (this.chartInstances.diary) this.chartInstances.diary.dispose();
-        var chart = echarts.init(this.$refs.diaryChart);
-        this.chartInstances.diary = chart;
+        var el = this.$refs.diaryChart;
+        if (!el) { console.warn("[Chart] diaryChart ref not found"); return; }
+        console.log("[Chart] rendering diary, container size:", el.offsetWidth, "x", el.offsetHeight);
+        var existing = echarts.getInstanceByDom(el);
+        if (existing) existing.dispose();
+        var chart = echarts.init(el);
         chart.setOption({
           tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
           legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
