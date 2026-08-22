@@ -1187,6 +1187,7 @@ def get_db_tables(payload):
 
 # ============ AI Chat 模块 ============
 
+import os
 import requests as http_requests
 import json as json_lib
 
