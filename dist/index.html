@@ -396,6 +396,18 @@
       font-size: 32px;
       font-weight: 600;
     }
+    .profile-avatar-wrap { position: relative; display: inline-block; }
+    .profile-avatar-img { width: 80px; height: 80px; border-radius: 50%; overflow: hidden; border: 3px solid #e8ecf0; }
+    .avatar-upload-btn {
+      position: absolute; bottom: -2px; right: -2px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: #1a3a6a; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      transition: background 0.2s;
+    }
+    .avatar-upload-btn:hover { background: #3a7aca; }
     .profile-info h3 { font-size: 20px; color: #1a2a4a; margin-bottom: 4px; }
     .profile-info p { color: #8899aa; font-size: 13px; }
 
@@ -886,7 +898,8 @@
           <div class="navbar-avatar">
             <el-dropdown @command="handleCommand" trigger="click">
               <span class="el-dropdown-link">
-                <el-avatar :size="32" style="background:#1a3a6a;">{{ userInfo.name ? userInfo.name.charAt(0) : 'A' }}</el-avatar>
+                <el-avatar :size="32" v-if="userInfo.avatar" :src="userInfo.avatar" style="background:#1a3a6a;"></el-avatar>
+                <el-avatar :size="32" v-else style="background:#1a3a6a;">{{ userInfo.name ? userInfo.name.charAt(0) : 'A' }}</el-avatar>
                 <span style="font-size:14px;">{{ userInfo.name || '管理员' }}</span>
                 <i class="el-icon-arrow-down el-icon--right"></i>
               </span>
@@ -1412,7 +1425,10 @@
               <!-- 消息列表 -->
               <div v-for="(msg, idx) in chatMessages" :key="idx" :class="['chat-message', msg.role]">
                 <div class="chat-avatar">
-                  <span v-if="msg.role === 'user'" class="avatar-circle user-avatar">{{ userInfo.name ? userInfo.name.charAt(0) : 'U' }}</span>
+                  <span v-if="msg.role === 'user'" class="avatar-circle user-avatar">
+                    <img v-if="userInfo.avatar" :src="userInfo.avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                    <span v-else>{{ userInfo.name ? userInfo.name.charAt(0) : 'U' }}</span>
+                  </span>
                   <span v-else class="avatar-circle ai-avatar">✦</span>
                 </div>
                 <div class="chat-bubble">
@@ -1564,7 +1580,16 @@
         <template v-if="currentRoute === '/profile'">
           <div class="page-card profile-container">
             <div class="profile-header-section">
-              <div class="profile-avatar">{{ userInfo.name ? userInfo.name.charAt(0) : 'A' }}</div>
+              <div class="profile-avatar-wrap">
+                <div v-if="userInfo.avatar" class="profile-avatar-img">
+                  <img :src="userInfo.avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />
+                </div>
+                <div v-else class="profile-avatar">{{ userInfo.name ? userInfo.name.charAt(0) : 'A' }}</div>
+                <label class="avatar-upload-btn" title="点击更换头像">
+                  <i class="el-icon-camera"></i>
+                  <input type="file" accept="image/*" @change="handleAvatarUpload" style="display:none;" />
+                </label>
+              </div>
               <div class="profile-info">
                 <h3>{{ userInfo.name || '管理员' }}</h3>
                 <p>{{ isAdmin ? '系统管理员' : '普通用户' }}</p>
@@ -1572,7 +1597,7 @@
             </div>
             <el-form :model="profileForm" ref="profileForm" label-width="90px" size="small" style="max-width:450px;">
               <el-form-item label="用户名"><el-input v-model="profileForm.username" disabled></el-input></el-form-item>
-              <el-form-item label="真实姓名"><el-input v-model="profileForm.real_name"></el-input></el-form-item>
+              <el-form-item label="真实姓名"><el-input v-model="profileForm.real_name" placeholder="输入显示名称"></el-input></el-form-item>
               <el-form-item label="手机号"><el-input v-model="profileForm.phone"></el-input></el-form-item>
               <el-form-item label="邮箱"><el-input v-model="profileForm.email"></el-input></el-form-item>
               <el-divider content-position="left">修改密码</el-divider>
@@ -2639,6 +2664,7 @@
         this.profileSaving = true;
         var payload = {
           id: this.userInfo.id || '',
+          name: this.profileForm.real_name,
           real_name: this.profileForm.real_name,
           phone: this.profileForm.phone,
           email: this.profileForm.email
@@ -2664,6 +2690,34 @@
           })
           .catch(function(err) { self.$message.error(err.message || '保存失败'); })
           .finally(function() { self.profileSaving = false; });
+      },
+
+      handleAvatarUpload: function(e) {
+        var self = this;
+        var file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          this.$message.error('头像不能超过 2MB');
+          e.target.value = '';
+          return;
+        }
+        var formData = new FormData();
+        formData.append('file', file);
+        api.post(API_PREFIX + '/user/upload-avatar', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 15000
+        }).then(function(res) {
+          if (res.code === 20000 && res.data && res.data.avatar_url) {
+            self.userInfo.avatar = res.data.avatar_url;
+            self.$message.success('头像更新成功');
+          } else {
+            self.$message.error(res.message || '上传失败');
+          }
+        }).catch(function(err) {
+          self.$message.error(err.message || '上传失败');
+        }).finally(function() {
+          e.target.value = '';
+        });
       },
 
       // ---------- 工具方法 ----------

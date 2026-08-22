@@ -1471,6 +1471,11 @@ def serve_index():
         return send_from_directory(STATIC_DIR, 'index.html')
     return jsonify({'code': 20000, 'message': '港澳台侨管库系统 API 运行中', 'data': {'status': 'ok'}})
 
+@app.route('/vue-admin-template/uploads/<path:filename>')
+def serve_uploads(filename):
+    """提供上传文件（头像等）的静态访问"""
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
 @app.route('/<path:path>')
 def serve_static(path):
     # 跳过 API 路由（已有专门的处理函数）
@@ -1494,3 +1499,37 @@ if __name__ == '__main__':
         logger.info(f'📦 数据库配置: SQLite - {Config.SQLITE_DB_PATH}')
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
+
+@app.route('/vue-admin-template/user/upload-avatar', methods=['POST'])
+@token_required
+def upload_avatar(payload):
+    """上传用户头像"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'code': 50000, 'message': '未选择文件'})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'code': 50000, 'message': '文件名为空'})
+        
+        # 只允许图片格式
+        allowed = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+        if ext not in allowed:
+            return jsonify({'code': 50000, 'message': '只支持图片格式 (png/jpg/jpeg/gif/webp/svg)'})
+        
+        # 保存头像
+        filename = f"avatar_{payload['user_id']}.{ext}"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        
+        # 更新用户头像字段
+        avatar_url = f"/vue-admin-template/uploads/{filename}"
+        User.update(payload['user_id'], avatar=avatar_url)
+        
+        logger.info(f'✅ 用户 {payload["user_id"]} 上传头像成功')
+        return jsonify({'code': 20000, 'data': {'avatar_url': avatar_url}})
+    except Exception as e:
+        logger.error(f'❌ 上传头像失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': '上传失败'}), 500
