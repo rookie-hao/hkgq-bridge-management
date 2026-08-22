@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """港澳台侨管理库系统 - 数据模型"""
 
-import pymysql
+import sqlite3
 import logging
 import re
 from datetime import datetime
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def _to_datetime(value):
     """
-    统一转换各种时间格式为 MySQL DATETIME 格式字符串 'YYYY-MM-DD HH:MM:SS'。
+    统一转换各种时间格式为 DATETIME 格式字符串 'YYYY-MM-DD HH:MM:SS'。
     返回 None 表示使用当前时间。
     """
     if value is None:
@@ -51,18 +51,23 @@ def _to_datetime(value):
     return value
 
 
+def _row_to_dict(row):
+    """将 sqlite3.Row 转换为 dict"""
+    if row is None:
+        return None
+    return dict(row)
+
+
+def _rows_to_list(rows):
+    """将 sqlite3.Row 列表转换为 dict 列表"""
+    return [dict(r) for r in rows]
+
+
 def get_db_connection():
     """获取数据库连接（模块级函数，方便各模型调用）"""
     try:
-        connection = pymysql.connect(
-            host=Config.MYSQL_HOST,
-            port=Config.MYSQL_PORT,
-            user=Config.MYSQL_USER,
-            password=Config.MYSQL_PASSWORD,
-            database=Config.MYSQL_DB,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
-        )
+        connection = sqlite3.connect(Config.SQLITE_DB_PATH)
+        connection.row_factory = sqlite3.Row
         return connection
     except Exception as e:
         logger.error(f'数据库连接错误: {str(e)}')
@@ -75,81 +80,75 @@ def init_db():
     """初始化数据库表结构并插入默认数据"""
     try:
         connection = get_db_connection()
-        with connection.cursor() as cursor:
-            # 用户表（保留原有结构）
+        with connection:
+            cursor = connection.cursor()
+
+            # 用户表
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     username VARCHAR(50) UNIQUE NOT NULL,
                     password VARCHAR(255) NOT NULL,
                     role VARCHAR(20) DEFAULT 'user',
                     name VARCHAR(50),
                     avatar VARCHAR(255),
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                )
             ''')
 
             # 人员信息表：侨胞/港澳台人员
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS personnel (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL COMMENT '姓名',
-                    gender VARCHAR(10) DEFAULT '' COMMENT '性别：男/女',
-                    birth_date DATE DEFAULT NULL COMMENT '出生日期',
-                    id_number VARCHAR(50) DEFAULT '' COMMENT '身份证号/护照号',
-                    phone VARCHAR(30) DEFAULT '' COMMENT '联系电话',
-                    email VARCHAR(100) DEFAULT '' COMMENT '邮箱',
-                    region VARCHAR(30) DEFAULT '' COMMENT '所在地区：香港/澳门/台湾/海外侨胞',
-                    address VARCHAR(255) DEFAULT '' COMMENT '现居地址',
-                    occupation VARCHAR(100) DEFAULT '' COMMENT '职业',
-                    organization VARCHAR(200) DEFAULT '' COMMENT '所属社团/组织',
-                    remark TEXT COMMENT '备注',
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(100) NOT NULL,
+                    gender VARCHAR(10) DEFAULT '',
+                    birth_date DATE DEFAULT NULL,
+                    id_number VARCHAR(50) DEFAULT '',
+                    phone VARCHAR(30) DEFAULT '',
+                    email VARCHAR(100) DEFAULT '',
+                    region VARCHAR(30) DEFAULT '',
+                    address VARCHAR(255) DEFAULT '',
+                    occupation VARCHAR(100) DEFAULT '',
+                    organization VARCHAR(200) DEFAULT '',
+                    remark TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_region (region),
-                    INDEX idx_name (name)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='港澳台侨人员信息表'
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
             ''')
 
             # 政策文件表
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS policy (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    title VARCHAR(255) NOT NULL COMMENT '标题',
-                    issuer VARCHAR(200) DEFAULT '' COMMENT '发布机构',
-                    publish_date DATE DEFAULT NULL COMMENT '发布日期',
-                    doc_number VARCHAR(100) DEFAULT '' COMMENT '文件编号',
-                    summary TEXT COMMENT '内容摘要',
-                    attachment_path VARCHAR(500) DEFAULT '' COMMENT '附件路径',
-                    category VARCHAR(30) DEFAULT '' COMMENT '分类：惠侨政策/涉台政策/涉港政策/涉澳政策',
-                    status VARCHAR(20) DEFAULT '有效' COMMENT '状态：有效/已废止/待生效',
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title VARCHAR(255) NOT NULL,
+                    issuer VARCHAR(200) DEFAULT '',
+                    publish_date DATE DEFAULT NULL,
+                    doc_number VARCHAR(100) DEFAULT '',
+                    summary TEXT,
+                    attachment_path VARCHAR(500) DEFAULT '',
+                    category VARCHAR(30) DEFAULT '',
+                    status VARCHAR(20) DEFAULT '有效',
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_category (category),
-                    INDEX idx_status (status),
-                    INDEX idx_publish_date (publish_date)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='港澳台侨政策文件表'
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
             ''')
 
             # 活动管理表
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS activity (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL COMMENT '活动名称',
-                    activity_type VARCHAR(30) DEFAULT '' COMMENT '活动类型：交流会/座谈会/文化节/招聘会/其他',
-                    start_time DATETIME DEFAULT NULL COMMENT '开始时间',
-                    end_time DATETIME DEFAULT NULL COMMENT '结束时间',
-                    location VARCHAR(255) DEFAULT '' COMMENT '地点',
-                    organizer VARCHAR(100) DEFAULT '' COMMENT '负责人',
-                    max_participants INT DEFAULT 0 COMMENT '参与人数上限',
-                    status VARCHAR(20) DEFAULT '未开始' COMMENT '活动状态：未开始/进行中/已结束',
-                    description TEXT COMMENT '活动描述',
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(255) NOT NULL,
+                    activity_type VARCHAR(30) DEFAULT '',
+                    start_time DATETIME DEFAULT NULL,
+                    end_time DATETIME DEFAULT NULL,
+                    location VARCHAR(255) DEFAULT '',
+                    organizer VARCHAR(100) DEFAULT '',
+                    max_participants INT DEFAULT 0,
+                    status VARCHAR(20) DEFAULT '未开始',
+                    description TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_type (activity_type),
-                    INDEX idx_status (status),
-                    INDEX idx_start_time (start_time)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='港澳台侨活动管理表'
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
             ''')
 
             # 插入默认管理员账号
@@ -158,7 +157,7 @@ def init_db():
             if result['count'] == 0:
                 cursor.executemany('''
                     INSERT INTO users (username, password, role, name, avatar, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ''', [
                     ('admin', '111111', 'admin', '管理员', '', '2026-06-22 14:58:00'),
                     ('test', '111111', 'user', '测试用户', '', '2026-06-22 14:58:30'),
@@ -182,7 +181,7 @@ def init_db():
                 ]
                 cursor.executemany('''
                     INSERT INTO personnel (name, gender, birth_date, id_number, phone, email, region, address, occupation, organization, remark)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', personnel_data)
 
             # 插入示例政策文件数据
@@ -203,7 +202,7 @@ def init_db():
                 ]
                 cursor.executemany('''
                     INSERT INTO policy (title, issuer, publish_date, doc_number, summary, attachment_path, category, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', policy_data)
 
             # 插入示例活动数据
@@ -224,10 +223,9 @@ def init_db():
                 ]
                 cursor.executemany('''
                     INSERT INTO activity (name, activity_type, start_time, end_time, location, organizer, max_participants, status, description)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', activity_data)
 
-        connection.commit()
         logger.info('✅ 数据库初始化完成 - 港澳台侨管理库系统')
     except Exception as e:
         logger.error(f'❌ 数据库初始化错误: {str(e)}')
@@ -237,7 +235,7 @@ def init_db():
             connection.close()
 
 
-# ============ User 模型（保留原有结构） ============
+# ============ User 模型 ============
 
 class User:
     """用户模型"""
@@ -247,8 +245,8 @@ class User:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('SELECT * FROM users WHERE username = %s', (username,))
-                return cursor.fetchone()
+                cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+                return _row_to_dict(cursor.fetchone())
         finally:
             connection.close()
 
@@ -257,8 +255,8 @@ class User:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('SELECT id, username, role, name, avatar FROM users WHERE id = %s', (user_id,))
-                return cursor.fetchone()
+                cursor.execute('SELECT id, username, role, name, avatar FROM users WHERE id = ?', (user_id,))
+                return _row_to_dict(cursor.fetchone())
         finally:
             connection.close()
 
@@ -267,8 +265,8 @@ class User:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('SELECT * FROM users WHERE name = %s', (name,))
-                return cursor.fetchone()
+                cursor.execute('SELECT * FROM users WHERE name = ?', (name,))
+                return _row_to_dict(cursor.fetchone())
         finally:
             connection.close()
 
@@ -279,7 +277,7 @@ class User:
             with connection.cursor() as cursor:
                 cursor.execute('''
                     INSERT INTO users (username, password, role, name, avatar)
-                    VALUES (%s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?)
                 ''', (username, password, role, name or username, avatar or ''))
                 connection.commit()
                 return cursor.lastrowid
@@ -294,14 +292,14 @@ class User:
                 query = 'SELECT id, username, role, name, avatar, created_at FROM users WHERE 1=1'
                 params = []
                 if username:
-                    query += ' AND username LIKE %s'
+                    query += ' AND username LIKE ?'
                     params.append(f'%{username}%')
                 if role:
-                    query += ' AND role = %s'
+                    query += ' AND role = ?'
                     params.append(role)
                 query += ' ORDER BY created_at DESC'
                 cursor.execute(query, params)
-                all_users = cursor.fetchall()
+                all_users = _rows_to_list(cursor.fetchall())
                 total = len(all_users)
                 start = (page - 1) * limit
                 users_page = all_users[start:start + limit]
@@ -320,20 +318,20 @@ class User:
                 updates = []
                 params = []
                 if name is not None:
-                    updates.append('name=%s')
+                    updates.append('name=?')
                     params.append(name)
                 if password is not None:
-                    updates.append('password=%s')
+                    updates.append('password=?')
                     params.append(password)
                 if role is not None:
-                    updates.append('role=%s')
+                    updates.append('role=?')
                     params.append(role)
                 if avatar is not None:
-                    updates.append('avatar=%s')
+                    updates.append('avatar=?')
                     params.append(avatar)
                 if updates:
                     params.append(user_id)
-                    cursor.execute(f'UPDATE users SET {", ".join(updates)} WHERE id=%s', params)
+                    cursor.execute(f'UPDATE users SET {", ".join(updates)} WHERE id=?', params)
                     connection.commit()
                 return user_id
         finally:
@@ -344,7 +342,7 @@ class User:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('DELETE FROM users WHERE id = %s', (user_id,))
+                cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
                 connection.commit()
                 return cursor.rowcount > 0
         finally:
@@ -364,28 +362,24 @@ class Personnel:
             with connection.cursor() as cursor:
                 where = 'WHERE 1=1'
                 params = []
-                # 关键词搜索（匹配姓名、电话、组织、地址）
                 if keyword:
-                    where += ' AND (name LIKE %s OR phone LIKE %s OR organization LIKE %s OR address LIKE %s)'
+                    where += ' AND (name LIKE ? OR phone LIKE ? OR organization LIKE ? OR address LIKE ?)'
                     like_kw = f'%{keyword}%'
                     params.extend([like_kw, like_kw, like_kw, like_kw])
-                # 地区筛选
                 if region:
-                    where += ' AND region = %s'
+                    where += ' AND region = ?'
                     params.append(region)
 
-                # 获取总数
                 cursor.execute(f'SELECT COUNT(*) as total FROM personnel {where}', params)
                 total = cursor.fetchone()['total']
 
-                # 分页查询
                 offset = (page - 1) * limit
                 cursor.execute(f'''
                     SELECT * FROM personnel {where}
                     ORDER BY created_at DESC
-                    LIMIT %s OFFSET %s
+                    LIMIT ? OFFSET ?
                 ''', params + [limit, offset])
-                items = cursor.fetchall()
+                items = _rows_to_list(cursor.fetchall())
 
                 return {'total': total, 'items': items}
         finally:
@@ -397,8 +391,8 @@ class Personnel:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('SELECT * FROM personnel WHERE id = %s', (person_id,))
-                return cursor.fetchone()
+                cursor.execute('SELECT * FROM personnel WHERE id = ?', (person_id,))
+                return _row_to_dict(cursor.fetchone())
         finally:
             connection.close()
 
@@ -412,7 +406,7 @@ class Personnel:
                 cursor.execute('''
                     INSERT INTO personnel (name, gender, birth_date, id_number, phone, email,
                                            region, address, occupation, organization, remark)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (name, gender, birth_date, id_number, phone, email,
                       region, address, occupation, organization, remark))
                 connection.commit()
@@ -430,19 +424,18 @@ class Personnel:
                 if not person:
                     return None
 
-                # 允许更新的字段
                 updatable = ['name', 'gender', 'birth_date', 'id_number', 'phone', 'email',
                              'region', 'address', 'occupation', 'organization', 'remark']
                 updates = []
                 params = []
                 for field in updatable:
                     if field in kwargs and kwargs[field] is not None:
-                        updates.append(f'{field}=%s')
+                        updates.append(f'{field}=?')
                         params.append(kwargs[field])
 
                 if updates:
                     params.append(person_id)
-                    cursor.execute(f'UPDATE personnel SET {", ".join(updates)} WHERE id=%s', params)
+                    cursor.execute(f'UPDATE personnel SET {", ".join(updates)} WHERE id=?', params)
                     connection.commit()
                 return person_id
         finally:
@@ -454,7 +447,7 @@ class Personnel:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('DELETE FROM personnel WHERE id = %s', (person_id,))
+                cursor.execute('DELETE FROM personnel WHERE id = ?', (person_id,))
                 connection.commit()
                 return cursor.rowcount > 0
         finally:
@@ -474,32 +467,27 @@ class Policy:
             with connection.cursor() as cursor:
                 where = 'WHERE 1=1'
                 params = []
-                # 关键词搜索（匹配标题、发布机构、文件编号）
                 if keyword:
-                    where += ' AND (title LIKE %s OR issuer LIKE %s OR doc_number LIKE %s)'
+                    where += ' AND (title LIKE ? OR issuer LIKE ? OR doc_number LIKE ?)'
                     like_kw = f'%{keyword}%'
                     params.extend([like_kw, like_kw, like_kw])
-                # 分类筛选
                 if category:
-                    where += ' AND category = %s'
+                    where += ' AND category = ?'
                     params.append(category)
-                # 状态筛选
                 if status:
-                    where += ' AND status = %s'
+                    where += ' AND status = ?'
                     params.append(status)
 
-                # 获取总数
                 cursor.execute(f'SELECT COUNT(*) as total FROM policy {where}', params)
                 total = cursor.fetchone()['total']
 
-                # 分页查询
                 offset = (page - 1) * limit
                 cursor.execute(f'''
                     SELECT * FROM policy {where}
                     ORDER BY publish_date DESC, created_at DESC
-                    LIMIT %s OFFSET %s
+                    LIMIT ? OFFSET ?
                 ''', params + [limit, offset])
-                items = cursor.fetchall()
+                items = _rows_to_list(cursor.fetchall())
 
                 return {'total': total, 'items': items}
         finally:
@@ -511,8 +499,8 @@ class Policy:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('SELECT * FROM policy WHERE id = %s', (policy_id,))
-                return cursor.fetchone()
+                cursor.execute('SELECT * FROM policy WHERE id = ?', (policy_id,))
+                return _row_to_dict(cursor.fetchone())
         finally:
             connection.close()
 
@@ -526,7 +514,7 @@ class Policy:
                 cursor.execute('''
                     INSERT INTO policy (title, issuer, publish_date, doc_number, summary,
                                         attachment_path, category, status)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (title, issuer, publish_date, doc_number, summary,
                       attachment_path, category, status))
                 connection.commit()
@@ -550,12 +538,12 @@ class Policy:
                 params = []
                 for field in updatable:
                     if field in kwargs and kwargs[field] is not None:
-                        updates.append(f'{field}=%s')
+                        updates.append(f'{field}=?')
                         params.append(kwargs[field])
 
                 if updates:
                     params.append(policy_id)
-                    cursor.execute(f'UPDATE policy SET {", ".join(updates)} WHERE id=%s', params)
+                    cursor.execute(f'UPDATE policy SET {", ".join(updates)} WHERE id=?', params)
                     connection.commit()
                 return policy_id
         finally:
@@ -567,7 +555,7 @@ class Policy:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('DELETE FROM policy WHERE id = %s', (policy_id,))
+                cursor.execute('DELETE FROM policy WHERE id = ?', (policy_id,))
                 connection.commit()
                 return cursor.rowcount > 0
         finally:
@@ -587,32 +575,27 @@ class Activity:
             with connection.cursor() as cursor:
                 where = 'WHERE 1=1'
                 params = []
-                # 关键词搜索（匹配活动名称、地点、负责人）
                 if keyword:
-                    where += ' AND (name LIKE %s OR location LIKE %s OR organizer LIKE %s)'
+                    where += ' AND (name LIKE ? OR location LIKE ? OR organizer LIKE ?)'
                     like_kw = f'%{keyword}%'
                     params.extend([like_kw, like_kw, like_kw])
-                # 类型筛选
                 if activity_type:
-                    where += ' AND activity_type = %s'
+                    where += ' AND activity_type = ?'
                     params.append(activity_type)
-                # 状态筛选
                 if status:
-                    where += ' AND status = %s'
+                    where += ' AND status = ?'
                     params.append(status)
 
-                # 获取总数
                 cursor.execute(f'SELECT COUNT(*) as total FROM activity {where}', params)
                 total = cursor.fetchone()['total']
 
-                # 分页查询
                 offset = (page - 1) * limit
                 cursor.execute(f'''
                     SELECT * FROM activity {where}
                     ORDER BY start_time DESC, created_at DESC
-                    LIMIT %s OFFSET %s
+                    LIMIT ? OFFSET ?
                 ''', params + [limit, offset])
-                items = cursor.fetchall()
+                items = _rows_to_list(cursor.fetchall())
 
                 return {'total': total, 'items': items}
         finally:
@@ -624,8 +607,8 @@ class Activity:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('SELECT * FROM activity WHERE id = %s', (activity_id,))
-                return cursor.fetchone()
+                cursor.execute('SELECT * FROM activity WHERE id = ?', (activity_id,))
+                return _row_to_dict(cursor.fetchone())
         finally:
             connection.close()
 
@@ -641,7 +624,7 @@ class Activity:
                 cursor.execute('''
                     INSERT INTO activity (name, activity_type, start_time, end_time, location,
                                           organizer, max_participants, status, description)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (name, activity_type, parsed_start, parsed_end, location,
                       organizer, max_participants, status, description))
                 connection.commit()
@@ -665,17 +648,16 @@ class Activity:
                 params = []
                 for field in updatable:
                     if field in kwargs and kwargs[field] is not None:
-                        # 时间字段需要转换格式
                         if field in ('start_time', 'end_time'):
                             val = _to_datetime(kwargs[field])
                         else:
                             val = kwargs[field]
-                        updates.append(f'{field}=%s')
+                        updates.append(f'{field}=?')
                         params.append(val)
 
                 if updates:
                     params.append(activity_id)
-                    cursor.execute(f'UPDATE activity SET {", ".join(updates)} WHERE id=%s', params)
+                    cursor.execute(f'UPDATE activity SET {", ".join(updates)} WHERE id=?', params)
                     connection.commit()
                 return activity_id
         finally:
@@ -687,7 +669,7 @@ class Activity:
         connection = get_db_connection()
         try:
             with connection.cursor() as cursor:
-                cursor.execute('DELETE FROM activity WHERE id = %s', (activity_id,))
+                cursor.execute('DELETE FROM activity WHERE id = ?', (activity_id,))
                 connection.commit()
                 return cursor.rowcount > 0
         finally:

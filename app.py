@@ -3,7 +3,6 @@
 
 from flask import Flask, jsonify, request
 import jwt
-import pymysql
 import logging
 from datetime import datetime, timedelta
 from functools import wraps
@@ -84,7 +83,7 @@ def _get_current_user_info(payload):
     return User.find_by_id(payload['user_id'])
 
 
-# ============ 认证 API（保留原有） ============
+# ============ 认证 API ============
 
 @app.route('/vue-admin-template/user/login', methods=['POST'])
 def login():
@@ -275,9 +274,11 @@ def delete_user(payload):
 
         # 禁止删除 admin 管理员账号
         conn = Config.get_db_connection()
-        cursor = conn.cursor(pymysql.cursors.DictCursor)
-        cursor.execute('SELECT username FROM users WHERE id = %s', (user_id,))
+        cursor = conn.cursor()
+        cursor.execute('SELECT username FROM users WHERE id = ?', (user_id,))
         target_user = cursor.fetchone()
+        if target_user:
+            target_user = dict(target_user)
         cursor.close()
         conn.close()
 
@@ -404,7 +405,6 @@ def update_personnel(payload):
         if not person:
             return jsonify({'code': 50004, 'message': '人员不存在'})
 
-        # 构建更新字段（仅传递前端传入的字段）
         update_fields = {}
         for field in ['name', 'gender', 'birth_date', 'id_number', 'phone', 'email',
                       'region', 'address', 'occupation', 'organization', 'remark']:
@@ -683,73 +683,61 @@ def get_dashboard_overview(payload):
     """统计看板 - 综合概览数据"""
     try:
         conn = Config.get_db_connection()
-        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor = conn.cursor()
 
-        # 用户总数
         cursor.execute('SELECT COUNT(*) as count FROM users')
-        users_count = cursor.fetchone()['count']
+        users_count = dict(cursor.fetchone())['count']
 
-        # 人员总数
         cursor.execute('SELECT COUNT(*) as count FROM personnel')
-        personnel_count = cursor.fetchone()['count']
+        personnel_count = dict(cursor.fetchone())['count']
 
-        # 政策文件总数
         cursor.execute('SELECT COUNT(*) as count FROM policy')
-        policy_count = cursor.fetchone()['count']
+        policy_count = dict(cursor.fetchone())['count']
 
-        # 活动总数
         cursor.execute('SELECT COUNT(*) as count FROM activity')
-        activity_count = cursor.fetchone()['count']
+        activity_count = dict(cursor.fetchone())['count']
 
-        # 各地区人员数量统计
         cursor.execute('''
             SELECT region, COUNT(*) as count FROM personnel
             WHERE region != '' GROUP BY region ORDER BY count DESC
         ''')
-        region_stats = cursor.fetchall()
+        region_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 各分类政策文件数量
         cursor.execute('''
             SELECT category, COUNT(*) as count FROM policy
             WHERE category != '' GROUP BY category ORDER BY count DESC
         ''')
-        policy_category_stats = cursor.fetchall()
+        policy_category_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 各状态政策文件数量
         cursor.execute('''
             SELECT status, COUNT(*) as count FROM policy
             WHERE status != '' GROUP BY status ORDER BY count DESC
         ''')
-        policy_status_stats = cursor.fetchall()
+        policy_status_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 活动按类型统计
         cursor.execute('''
             SELECT activity_type, COUNT(*) as count FROM activity
             WHERE activity_type != '' GROUP BY activity_type ORDER BY count DESC
         ''')
-        activity_type_stats = cursor.fetchall()
+        activity_type_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 活动按状态统计
         cursor.execute('''
             SELECT status, COUNT(*) as count FROM activity
             WHERE status != '' GROUP BY status ORDER BY count DESC
         ''')
-        activity_status_stats = cursor.fetchall()
+        activity_status_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 最近活动列表（最新5条）
         cursor.execute('''
             SELECT id, name, activity_type, start_time, end_time, location, organizer, status
             FROM activity ORDER BY start_time DESC LIMIT 5
         ''')
-        recent_activities = cursor.fetchall()
+        recent_activities = [dict(r) for r in cursor.fetchall()]
 
-        # 有效政策数量
         cursor.execute("SELECT COUNT(*) as count FROM policy WHERE status = '有效'")
-        active_policy_count = cursor.fetchone()['count']
+        active_policy_count = dict(cursor.fetchone())['count']
 
-        # 进行中活动数量
         cursor.execute("SELECT COUNT(*) as count FROM activity WHERE status = '进行中'")
-        ongoing_activity_count = cursor.fetchone()['count']
+        ongoing_activity_count = dict(cursor.fetchone())['count']
 
         conn.close()
 
@@ -782,13 +770,13 @@ def get_region_stats(payload):
     """统计看板 - 各地区人员数量统计"""
     try:
         conn = Config.get_db_connection()
-        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor = conn.cursor()
 
         cursor.execute('''
             SELECT region, COUNT(*) as count FROM personnel
             WHERE region != '' GROUP BY region ORDER BY count DESC
         ''')
-        stats = cursor.fetchall()
+        stats = [dict(r) for r in cursor.fetchall()]
 
         conn.close()
         return jsonify({'code': 20000, 'data': stats})
@@ -803,21 +791,19 @@ def get_policy_stats(payload):
     """统计看板 - 政策文件分类与状态统计"""
     try:
         conn = Config.get_db_connection()
-        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor = conn.cursor()
 
-        # 按分类统计
         cursor.execute('''
             SELECT category, COUNT(*) as count FROM policy
             WHERE category != '' GROUP BY category ORDER BY count DESC
         ''')
-        category_stats = cursor.fetchall()
+        category_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 按状态统计
         cursor.execute('''
             SELECT status, COUNT(*) as count FROM policy
             GROUP BY status ORDER BY count DESC
         ''')
-        status_stats = cursor.fetchall()
+        status_stats = [dict(r) for r in cursor.fetchall()]
 
         conn.close()
         return jsonify({'code': 20000, 'data': {
@@ -835,28 +821,25 @@ def get_activity_stats(payload):
     """统计看板 - 活动统计（按类型、按状态）"""
     try:
         conn = Config.get_db_connection()
-        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor = conn.cursor()
 
-        # 按类型统计
         cursor.execute('''
             SELECT activity_type, COUNT(*) as count FROM activity
             WHERE activity_type != '' GROUP BY activity_type ORDER BY count DESC
         ''')
-        type_stats = cursor.fetchall()
+        type_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 按状态统计
         cursor.execute('''
             SELECT status, COUNT(*) as count FROM activity
             GROUP BY status ORDER BY count DESC
         ''')
-        status_stats = cursor.fetchall()
+        status_stats = [dict(r) for r in cursor.fetchall()]
 
-        # 最近活动列表
         cursor.execute('''
             SELECT id, name, activity_type, start_time, end_time, location, status
             FROM activity ORDER BY created_at DESC LIMIT 10
         ''')
-        recent = cursor.fetchall()
+        recent = [dict(r) for r in cursor.fetchall()]
 
         conn.close()
         return jsonify({'code': 20000, 'data': {
@@ -879,16 +862,16 @@ def get_db_stats(payload):
     cursor = conn.cursor()
     try:
         cursor.execute('SELECT COUNT(*) as count FROM users')
-        users_count = cursor.fetchone()['count']
+        users_count = dict(cursor.fetchone())['count']
 
         cursor.execute('SELECT COUNT(*) as count FROM personnel')
-        personnel_count = cursor.fetchone()['count']
+        personnel_count = dict(cursor.fetchone())['count']
 
         cursor.execute('SELECT COUNT(*) as count FROM policy')
-        policy_count = cursor.fetchone()['count']
+        policy_count = dict(cursor.fetchone())['count']
 
         cursor.execute('SELECT COUNT(*) as count FROM activity')
-        activity_count = cursor.fetchone()['count']
+        activity_count = dict(cursor.fetchone())['count']
 
         stats = {
             'users': users_count,
@@ -926,10 +909,12 @@ def get_db_tables(payload):
         columns = [desc[0] for desc in cursor.description]
         data = []
         for row in rows:
-            item = {}
-            for i, col in enumerate(columns):
-                value = row[i]
-                item[col] = str(value) if value else ''
+            item = dict(row)
+            for key in item:
+                if item[key] is not None:
+                    item[key] = str(item[key])
+                else:
+                    item[key] = ''
             data.append(item)
 
         logger.info(f'📋 查看表 {table_name}: 返回 {len(data)} 条记录')
@@ -949,9 +934,54 @@ def get_db_tables(payload):
         conn.close()
 
 
+# ============ 生产模式：托管前端静态文件 ============
+import os
+
+# 构建后的前端文件目录
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist')
+
+if os.path.exists(STATIC_DIR):
+    from flask import send_from_directory
+
+    @app.route('/')
+    def serve_index():
+        return send_from_directory(STATIC_DIR, 'index.html')
+
+    @app.route('/css/<path:filename>')
+    def serve_css(filename):
+        return send_from_directory(os.path.join(STATIC_DIR, 'css'), filename)
+
+    @app.route('/js/<path:filename>')
+    def serve_js(filename):
+        return send_from_directory(os.path.join(STATIC_DIR, 'js'), filename)
+
+    @app.route('/img/<path:filename>')
+    def serve_img(filename):
+        return send_from_directory(os.path.join(STATIC_DIR, 'img'), filename)
+
+    @app.route('/fonts/<path:filename>')
+    def serve_fonts(filename):
+        return send_from_directory(os.path.join(STATIC_DIR, 'fonts'), filename)
+
+    @app.route('/static/<path:filename>')
+    def serve_static_files(filename):
+        file_path = os.path.join(STATIC_DIR, 'static', filename)
+        if os.path.isfile(file_path):
+            return send_from_directory(os.path.join(STATIC_DIR, 'static'), filename)
+        return '', 404
+
+    @app.route('/<path:path>')
+    def serve_static(path):
+        file_path = os.path.join(STATIC_DIR, path)
+        if os.path.isfile(file_path):
+            return send_from_directory(STATIC_DIR, path)
+        return send_from_directory(STATIC_DIR, 'index.html')
+
+
 # ============ 启动入口 ============
 
 if __name__ == '__main__':
     logger.info('🚀 港澳台侨管理库系统后端启动')
-    logger.info(f'📦 数据库配置: mysql://{Config.MYSQL_HOST}:{Config.MYSQL_PORT}/{Config.MYSQL_DB}')
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    logger.info(f'📦 数据库配置: SQLite - {Config.SQLITE_DB_PATH}')
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
