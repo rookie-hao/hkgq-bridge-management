@@ -936,46 +936,28 @@ def get_db_tables(payload):
 
 # ============ 生产模式：托管前端静态文件 ============
 import os
+from flask import send_from_directory
 
-# 构建后的前端文件目录
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist')
 
-if os.path.exists(STATIC_DIR):
-    from flask import send_from_directory
-
-    @app.route('/')
-    def serve_index():
+@app.route('/')
+def serve_index():
+    index_path = os.path.join(STATIC_DIR, 'index.html')
+    if os.path.isfile(index_path):
         return send_from_directory(STATIC_DIR, 'index.html')
+    return jsonify({'code': 20000, 'message': '港澳台侨管库系统 API 运行中', 'data': {'status': 'ok'}})
 
-    @app.route('/css/<path:filename>')
-    def serve_css(filename):
-        return send_from_directory(os.path.join(STATIC_DIR, 'css'), filename)
-
-    @app.route('/js/<path:filename>')
-    def serve_js(filename):
-        return send_from_directory(os.path.join(STATIC_DIR, 'js'), filename)
-
-    @app.route('/img/<path:filename>')
-    def serve_img(filename):
-        return send_from_directory(os.path.join(STATIC_DIR, 'img'), filename)
-
-    @app.route('/fonts/<path:filename>')
-    def serve_fonts(filename):
-        return send_from_directory(os.path.join(STATIC_DIR, 'fonts'), filename)
-
-    @app.route('/static/<path:filename>')
-    def serve_static_files(filename):
-        file_path = os.path.join(STATIC_DIR, 'static', filename)
-        if os.path.isfile(file_path):
-            return send_from_directory(os.path.join(STATIC_DIR, 'static'), filename)
-        return '', 404
-
-    @app.route('/<path:path>')
-    def serve_static(path):
-        file_path = os.path.join(STATIC_DIR, path)
-        if os.path.isfile(file_path):
-            return send_from_directory(STATIC_DIR, path)
+@app.route('/<path:path>')
+def serve_static(path):
+    # 跳过 API 路由（已有专门的处理函数）
+    file_path = os.path.join(STATIC_DIR, path)
+    if os.path.isfile(file_path):
+        return send_from_directory(STATIC_DIR, path)
+    # 非 API、非静态文件的路径，返回 index.html（SPA hash 路由）
+    index_path = os.path.join(STATIC_DIR, 'index.html')
+    if os.path.isfile(index_path):
         return send_from_directory(STATIC_DIR, 'index.html')
+    return jsonify({'code': 404, 'message': 'Not Found'}), 404
 
 
 # ============ 启动入口 ============

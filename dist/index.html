@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>港澳台侨管库系统</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui@2.15.14/lib/theme-chalk/index.css">
+  <style>
+    /* ========== 全局样式 ========== */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #app { height: 100%; font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif; }
+    body { background: #f0f2f5; }
+
+    /* ========== 登录页 ========== */
+    .login-container {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1a2a4a 0%, #2d4a7a 50%, #1a3a6a 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .login-container::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(ellipse at center, rgba(255,255,255,0.03) 0%, transparent 70%);
+      animation: loginBgRotate 30s linear infinite;
+    }
+    @keyframes loginBgRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .login-card {
+      width: 420px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 12px;
+      padding: 40px 36px 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      position: relative;
+      z-index: 1;
+    }
+    .login-title {
+      text-align: center;
+      margin-bottom: 8px;
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a2a4a;
+      letter-spacing: 2px;
+    }
+    .login-subtitle {
+      text-align: center;
+      color: #8899aa;
+      font-size: 13px;
+      margin-bottom: 32px;
+    }
+    .login-card .el-input__inner {
+      height: 44px;
+      line-height: 44px;
+      border-radius: 6px;
+    }
+    .login-card .el-button--primary {
+      width: 100%;
+      height: 44px;
+      border-radius: 6px;
+      font-size: 16px;
+      letter-spacing: 2px;
+      background: #1a3a6a;
+      border-color: #1a3a6a;
+    }
+    .login-card .el-button--primary:hover {
+      background: #2d4a7a;
+      border-color: #2d4a7a;
+    }
+    .login-logo {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .login-logo .icon-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #1a3a6a, #3a6aaa);
+      color: #fff;
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    /* ========== 主布局 ========== */
+    .app-wrapper { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar-container {
+      width: 220px;
+      min-width: 220px;
+      height: 100vh;
+      background: #1a2a4a;
+      transition: width 0.28s;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-container.collapsed { width: 64px; min-width: 64px; }
+    .sidebar-logo {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      background: rgba(0,0,0,0.15);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .sidebar-logo .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #4a8aca, #6aaaea);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .sidebar-logo .logo-text {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      margin-left: 10px;
+      letter-spacing: 1px;
+    }
+    .sidebar-container.collapsed .logo-text { display: none; }
+    .sidebar-menu {
+      flex: 1;
+      overflow-y: auto;
+      border-right: none;
+      background: transparent;
+    }
+    .sidebar-menu::-webkit-scrollbar { width: 0; }
+    .sidebar-container .el-menu {
+      border-right: none;
+      background: transparent;
+    }
+    .sidebar-container .el-menu-item,
+    .sidebar-container .el-submenu__title {
+      color: rgba(255,255,255,0.7);
+      height: 48px;
+      line-height: 48px;
+    }
+    .sidebar-container .el-menu-item:hover,
+    .sidebar-container .el-submenu__title:hover {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+    }
+    .sidebar-container .el-menu-item.is-active {
+      background: linear-gradient(90deg, #2d5a9a 0%, transparent 100%);
+      color: #fff;
+    }
+    .sidebar-container .el-menu-item i,
+    .sidebar-container .el-submenu__title i {
+      color: rgba(255,255,255,0.6);
+      margin-right: 8px;
+    }
+    .sidebar-container .el-menu-item.is-active i { color: #fff; }
+
+    /* 主内容区 */
+    .main-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .navbar {
+      height: 56px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 1px 4px rgba(0,21,41,0.08);
+      z-index: 1;
+      flex-shrink: 0;
+    }
+    .navbar-left { display: flex; align-items: center; gap: 12px; }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .hamburger-btn { cursor: pointer; font-size: 20px; color: #5a6a7a; padding: 4px; }
+    .hamburger-btn:hover { color: #1a3a6a; }
+    .breadcrumb-area .el-breadcrumb { font-size: 14px; }
+    .navbar-avatar { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .navbar-avatar .el-dropdown-link { display: flex; align-items: center; gap: 8px; cursor: pointer; color: #5a6a7a; }
+    .navbar-avatar .el-dropdown-link:hover { color: #1a3a6a; }
+
+    .app-main { flex: 1; overflow-y: auto; padding: 20px; background: #f0f2f5; }
+
+    /* ========== 仪表盘 ========== */
+    .dashboard-overview { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+    .overview-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .overview-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .overview-card .card-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-right: 16px;
+      flex-shrink: 0;
+    }
+    .overview-card .card-icon.blue { background: linear-gradient(135deg, #1a3a6a, #3a7aca); color: #fff; }
+    .overview-card .card-icon.green { background: linear-gradient(135deg, #1a8a5a, #3aba8a); color: #fff; }
+    .overview-card .card-icon.orange { background: linear-gradient(135deg, #ca7a1a, #eaaa4a); color: #fff; }
+    .overview-card .card-icon.purple { background: linear-gradient(135deg, #6a3aaa, #9a6ada); color: #fff; }
+    .overview-card .card-info .card-title { font-size: 13px; color: #8899aa; margin-bottom: 4px; }
+    .overview-card .card-info .card-value { font-size: 28px; font-weight: 700; color: #1a2a4a; }
+
+    .dashboard-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .chart-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .chart-card .chart-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a2a4a;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .chart-container { width: 100%; height: 320px; }
+
+    /* ========== 列表页通用 ========== */
+    .page-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .page-header .page-title { font-size: 17px; font-weight: 600; color: #1a2a4a; }
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .pagination-area {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    /* ========== 表单弹窗 ========== */
+    .form-dialog .el-dialog__header {
+      background: #f8f9fb;
+      border-bottom: 1px solid #eee;
+      padding: 16px 20px;
+    }
+    .form-dialog .el-dialog__body { padding: 24px 20px; }
+
+    /* ========== 详情页 ========== */
+    .detail-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #eee;
+    }
+    .detail-header .detail-title { font-size: 18px; font-weight: 600; color: #1a2a4a; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    .detail-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f5f5f5;
+      display: flex;
+    }
+    .detail-item:nth-child(odd) { border-right: 1px solid #f5f5f5; }
+    .detail-item .detail-label {
+      width: 100px;
+      flex-shrink: 0;
+      color: #8899aa;
+      font-size: 13px;
+    }
+    .detail-item .detail-value { color: #333; font-size: 14px; word-break: break-all; }
+
+    /* ========== 个人设置 ========== */
+    .profile-container { max-width: 600px; }
+    .profile-header-section {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #eee;
+    }
+    .profile-avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1a3a6a, #3a7aca);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 32px;
+      font-weight: 600;
+    }
+    .profile-info h3 { font-size: 20px; color: #1a2a4a; margin-bottom: 4px; }
+    .profile-info p { color: #8899aa; font-size: 13px; }
+
+    /* ========== 响应式 ========== */
+    @media (max-width: 1200px) {
+      .dashboard-overview { grid-template-columns: repeat(2, 1fr); }
+      .dashboard-charts { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .dashboard-overview { grid-template-columns: 1fr; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .detail-item:nth-child(odd) { border-right: none; }
+    }
+
+    /* ========== 全局主题覆盖 ========== */
+    .el-button--primary { background-color: #1a3a6a !important; border-color: #1a3a6a !important; }
+    .el-button--primary:hover, .el-button--primary:focus { background-color: #2d5a9a !important; border-color: #2d5a9a !important; }
+    .el-pagination.is-background .el-pager li:not(.disabled).active { background-color: #1a3a6a !important; }
+    .el-menu--horizontal > .el-menu-item.is-active { border-bottom-color: #1a3a6a !important; }
+    .el-tag--dark { border-color: transparent; }
+
+    /* 文本域编辑器样式 */
+    .text-editor-area textarea {
+      font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+    }
+    .el-dialog__wrapper { z-index: 1000 !important; }
+    .v-modal { z-index: 999 !important; }
+
+    /* 内容区域文本展示 */
+    .content-display { white-space: pre-wrap; word-break: break-word; line-height: 1.6; color: #333; }
+
+    /* 空数据 */
+    .empty-placeholder { text-align: center; padding: 40px; color: #bbb; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- 登录页 -->
+  <div v-if="isLoginPage" class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="icon-wrap">侨</div>
+      </div>
+      <div class="login-title">港澳台侨管库系统</div>
+      <div class="login-subtitle">Hong Kong, Macau, Taiwan & Overseas Chinese Management System</div>
+      <el-form :model="loginForm" :rules="loginRules" ref="loginForm" @submit.prevent.native="handleLogin">
+        <el-form-item prop="username">
+          <el-input v-model="loginForm.username" prefix-icon="el-icon-user" placeholder="请输入用户名" autocomplete="off"></el-input>
+        </el-form-item>
+        <el-form-item prop="password">
+          <el-input v-model="loginForm.password" prefix-icon="el-icon-lock" placeholder="请输入密码" show-password autocomplete="off" @keyup.enter.native="handleLogin"></el-input>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="loginLoading" @click="handleLogin">登 录</el-button>
+        </el-form-item>
+      </el-form>
+      <div style="text-align:center;color:#bbb;font-size:12px;">默认管理员：admin / 111111</div>
+    </div>
+  </div>
+
+  <!-- 主应用 -->
+  <div v-else class="app-wrapper">
+    <!-- 侧边栏 -->
+    <div class="sidebar-container" :class="{collapsed: sidebarCollapsed}">
+      <div class="sidebar-logo">
+        <div class="logo-icon">侨</div>
+        <span class="logo-text">港澳台侨管库</span>
+      </div>
+      <el-menu
+        class="sidebar-menu"
+        :default-active="currentRoute"
+        :collapse="sidebarCollapsed"
+        :unique-opened="true"
+        background-color="#1a2a4a"
+        text-color="rgba(255,255,255,0.7)"
+        active-text-color="#ffffff"
+        @select="handleMenuSelect"
+      >
+        <el-menu-item index="/dashboard">
+          <i class="el-icon-s-home"></i>
+          <span slot="title">仪表盘</span>
+        </el-menu-item>
+        <el-menu-item index="/personnel">
+          <i class="el-icon-user-solid"></i>
+          <span slot="title">人员管理</span>
+        </el-menu-item>
+        <el-menu-item index="/policy">
+          <i class="el-icon-document"></i>
+          <span slot="title">政策法规</span>
+        </el-menu-item>
+        <el-menu-item index="/activity">
+          <i class="el-icon-s-flag"></i>
+          <span slot="title">交流活动</span>
+        </el-menu-item>
+        <el-menu-item index="/user" v-if="isAdmin">
+          <i class="el-icon-s-custom"></i>
+          <span slot="title">用户管理</span>
+        </el-menu-item>
+      </el-menu>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-container">
+      <!-- 顶部导航 -->
+      <div class="navbar">
+        <div class="navbar-left">
+          <span class="hamburger-btn" @click="sidebarCollapsed = !sidebarCollapsed">
+            <i :class="sidebarCollapsed ? 'el-icon-s-unfold' : 'el-icon-s-fold'"></i>
+          </span>
+          <div class="breadcrumb-area">
+            <el-breadcrumb separator="/">
+              <el-breadcrumb-item>首页</el-breadcrumb-item>
+              <el-breadcrumb-item v-if="currentPageName">{{ currentPageName }}</el-breadcrumb-item>
+            </el-breadcrumb>
+          </div>
+        </div>
+        <div class="navbar-right">
+          <div class="navbar-avatar">
+            <el-dropdown @command="handleCommand" trigger="click">
+              <span class="el-dropdown-link">
+                <el-avatar :size="32" style="background:#1a3a6a;">{{ userInfo.name ? userInfo.name.charAt(0) : 'A' }}</el-avatar>
+                <span style="font-size:14px;">{{ userInfo.name || '管理员' }}</span>
+                <i class="el-icon-arrow-down el-icon--right"></i>
+              </span>
+              <el-dropdown-menu slot="dropdown">
+                <el-dropdown-item command="profile"><i class="el-icon-user"></i> 个人设置</el-dropdown-item>
+                <el-dropdown-item divided command="logout"><i class="el-icon-switch-button"></i> 退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </el-dropdown>
+          </div>
+        </div>
+      </div>
+
+      <!-- 页面内容 -->
+      <div class="app-main">
+
+        <!-- ========== 仪表盘 ========== -->
+        <template v-if="currentRoute === '/dashboard'">
+          <div class="dashboard-overview">
+            <div class="overview-card">
+              <div class="card-icon blue"><i class="el-icon-user-solid"></i></div>
+              <div class="card-info">
+                <div class="card-title">人员总数</div>
+                <div class="card-value">{{ dashboardOverview.personnel_count || 0 }}</div>
+              </div>
+            </div>
+            <div class="overview-card">
+              <div class="card-icon green"><i class="el-icon-document"></i></div>
+              <div class="card-info">
+                <div class="card-title">政策法规</div>
+                <div class="card-value">{{ dashboardOverview.policy_count || 0 }}</div>
+              </div>
+            </div>
+            <div class="overview-card">
+              <div class="card-icon orange"><i class="el-icon-s-flag"></i></div>
+              <div class="card-info">
+                <div class="card-title">交流活动</div>
+                <div class="card-value">{{ dashboardOverview.activity_count || 0 }}</div>
+              </div>
+            </div>
+            <div class="overview-card">
+              <div class="card-icon purple"><i class="el-icon-s-custom"></i></div>
+              <div class="card-info">
+                <div class="card-title">系统用户</div>
+                <div class="card-value">{{ dashboardOverview.user_count || 0 }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="dashboard-charts">
+            <div class="chart-card">
+              <div class="chart-title">地区分布统计</div>
+              <div class="chart-container" ref="regionChart"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">政策分类统计</div>
+              <div class="chart-container" ref="policyChart"></div>
+            </div>
+          </div>
+          <div class="dashboard-charts">
+            <div class="chart-card">
+              <div class="chart-title">活动类型统计</div>
+              <div class="chart-container" ref="activityChart"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">人员分类概览</div>
+              <div class="chart-container" ref="personnelChart"></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ========== 人员管理 ========== -->
+        <template v-if="currentRoute === '/personnel'">
+          <div v-if="!personnelDetailId" class="page-card">
+            <div class="page-header">
+              <div class="page-title">人员管理</div>
+              <el-button type="primary" icon="el-icon-plus" size="small" @click="openPersonnelForm()">新增人员</el-button>
+            </div>
+            <div class="filter-bar">
+              <el-input v-model="personnelFilter.keyword" placeholder="搜索姓名/关键词" size="small" prefix-icon="el-icon-search" clearable style="width:240px;" @clear="loadPersonnel" @keyup.enter.native="loadPersonnel"></el-input>
+              <el-select v-model="personnelFilter.category" placeholder="人员分类" size="small" clearable @change="loadPersonnel" style="width:160px;">
+                <el-option v-for="c in personnelCategories" :key="c" :label="c" :value="c"></el-option>
+              </el-select>
+              <el-button size="small" type="primary" icon="el-icon-search" @click="loadPersonnel">搜索</el-button>
+              <el-button size="small" icon="el-icon-refresh" @click="resetPersonnelFilter">重置</el-button>
+            </div>
+            <el-table :data="personnelList" v-loading="personnelLoading" border stripe style="width:100%;" size="small">
+              <el-table-column prop="id" label="ID" width="70" align="center"></el-table-column>
+              <el-table-column prop="name" label="姓名" min-width="100"></el-table-column>
+              <el-table-column prop="category" label="分类" width="120">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="getCategoryTagType(scope.row.category)">{{ scope.row.category || '-' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="region" label="地区" width="100"></el-table-column>
+              <el-table-column prop="title" label="职务/头衔" min-width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="organization" label="所属机构" min-width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column label="操作" width="200" align="center" fixed="right">
+                <template slot-scope="scope">
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewPersonnelDetail(scope.row.id)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-edit" @click="openPersonnelForm(scope.row)">编辑</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deletePersonnel(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="pagination-area">
+              <el-pagination background layout="total, prev, pager, next, sizes" :total="personnelTotal" :page-size.sync="personnelFilter.page_size" :current-page.sync="personnelFilter.page" @current-change="loadPersonnel" @size-change="handlePersonnelSizeChange"></el-pagination>
+            </div>
+          </div>
+
+          <!-- 人员详情 -->
+          <div v-else class="detail-card">
+            <div class="detail-header">
+              <div class="detail-title">{{ personnelDetailData.name || '人员详情' }}</div>
+              <div>
+                <el-button size="small" icon="el-icon-edit" @click="openPersonnelForm(personnelDetailData)">编辑</el-button>
+                <el-button size="small" icon="el-icon-back" @click="personnelDetailId = null; loadPersonnel();">返回列表</el-button>
+              </div>
+            </div>
+            <div v-loading="personnelDetailLoading">
+              <div class="detail-grid">
+                <div class="detail-item" v-for="(val, key) in personnelDetailData" :key="key">
+                  <div class="detail-label">{{ getFieldLabel(key) }}</div>
+                  <div class="detail-value">{{ formatFieldValue(key, val) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 人员表单弹窗 -->
+          <el-dialog :title="personnelForm.id ? '编辑人员' : '新增人员'" :visible.sync="personnelFormVisible" width="680px" custom-class="form-dialog" :close-on-click-modal="false">
+            <el-form :model="personnelForm" ref="personnelForm" label-width="90px" size="small">
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="姓名" prop="name" :rules="[{required:true,message:'请输入姓名'}]"><el-input v-model="personnelForm.name"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="分类" prop="category"><el-select v-model="personnelForm.category" placeholder="请选择" style="width:100%;">
+                  <el-option v-for="c in personnelCategories" :key="c" :label="c" :value="c"></el-option>
+                </el-select></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="地区"><el-input v-model="personnelForm.region"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="职务/头衔"><el-input v-model="personnelForm.title"></el-input></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="所属机构"><el-input v-model="personnelForm.organization"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="联系电话"><el-input v-model="personnelForm.phone"></el-input></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="邮箱"><el-input v-model="personnelForm.email"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="出生日期"><el-date-picker v-model="personnelForm.birthday" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
+              </el-row>
+              <el-form-item label="备注"><el-input v-model="personnelForm.remark" type="textarea" :rows="3"></el-input></el-form-item>
+            </el-form>
+            <span slot="footer">
+              <el-button size="small" @click="personnelFormVisible = false">取消</el-button>
+              <el-button size="small" type="primary" :loading="personnelSubmitting" @click="submitPersonnel">确定</el-button>
+            </span>
+          </el-dialog>
+        </template>
+
+        <!-- ========== 政策法规 ========== -->
+        <template v-if="currentRoute === '/policy'">
+          <div v-if="!policyDetailId" class="page-card">
+            <div class="page-header">
+              <div class="page-title">政策法规管理</div>
+              <el-button type="primary" icon="el-icon-plus" size="small" @click="openPolicyForm()">新增政策</el-button>
+            </div>
+            <div class="filter-bar">
+              <el-input v-model="policyFilter.keyword" placeholder="搜索标题/关键词" size="small" prefix-icon="el-icon-search" clearable style="width:240px;" @clear="loadPolicy" @keyup.enter.native="loadPolicy"></el-input>
+              <el-select v-model="policyFilter.category" placeholder="政策分类" size="small" clearable @change="loadPolicy" style="width:160px;">
+                <el-option v-for="c in policyCategories" :key="c" :label="c" :value="c"></el-option>
+              </el-select>
+              <el-button size="small" type="primary" icon="el-icon-search" @click="loadPolicy">搜索</el-button>
+              <el-button size="small" icon="el-icon-refresh" @click="resetPolicyFilter">重置</el-button>
+            </div>
+            <el-table :data="policyList" v-loading="policyLoading" border stripe style="width:100%;" size="small">
+              <el-table-column prop="id" label="ID" width="70" align="center"></el-table-column>
+              <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="category" label="分类" width="120">
+                <template slot-scope="scope">
+                  <el-tag size="mini">{{ scope.row.category || '-' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="region" label="适用地区" width="120"></el-table-column>
+              <el-table-column prop="publish_date" label="发布日期" width="120"></el-table-column>
+              <el-table-column prop="status" label="状态" width="90" align="center">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="scope.row.status === '已发布' ? 'success' : 'info'">{{ scope.row.status || '草稿' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" align="center" fixed="right">
+                <template slot-scope="scope">
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewPolicyDetail(scope.row.id)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-edit" @click="openPolicyForm(scope.row)">编辑</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deletePolicy(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="pagination-area">
+              <el-pagination background layout="total, prev, pager, next, sizes" :total="policyTotal" :page-size.sync="policyFilter.page_size" :current-page.sync="policyFilter.page" @current-change="loadPolicy" @size-change="handlePolicySizeChange"></el-pagination>
+            </div>
+          </div>
+
+          <div v-else class="detail-card">
+            <div class="detail-header">
+              <div class="detail-title">{{ policyDetailData.title || '政策详情' }}</div>
+              <div>
+                <el-button size="small" icon="el-icon-edit" @click="openPolicyForm(policyDetailData)">编辑</el-button>
+                <el-button size="small" icon="el-icon-back" @click="policyDetailId = null; loadPolicy();">返回列表</el-button>
+              </div>
+            </div>
+            <div v-loading="policyDetailLoading">
+              <div class="detail-grid">
+                <div class="detail-item" v-for="(val, key) in policyDetailData" :key="key">
+                  <div class="detail-label">{{ getFieldLabel(key) }}</div>
+                  <div class="detail-value" :class="{'content-display': key === 'content'}">{{ formatFieldValue(key, val) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-dialog :title="policyForm.id ? '编辑政策' : '新增政策'" :visible.sync="policyFormVisible" width="720px" custom-class="form-dialog" :close-on-click-modal="false">
+            <el-form :model="policyForm" ref="policyForm" label-width="90px" size="small">
+              <el-form-item label="标题" prop="title" :rules="[{required:true,message:'请输入标题'}]"><el-input v-model="policyForm.title"></el-input></el-form-item>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="分类"><el-select v-model="policyForm.category" placeholder="请选择" style="width:100%;">
+                  <el-option v-for="c in policyCategories" :key="c" :label="c" :value="c"></el-option>
+                </el-select></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="适用地区"><el-input v-model="policyForm.region"></el-input></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="发布日期"><el-date-picker v-model="policyForm.publish_date" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="状态"><el-select v-model="policyForm.status" placeholder="请选择" style="width:100%;">
+                  <el-option label="已发布" value="已发布"></el-option>
+                  <el-option label="草稿" value="草稿"></el-option>
+                  <el-option label="已废止" value="已废止"></el-option>
+                </el-select></el-form-item></el-col>
+              </el-row>
+              <el-form-item label="摘要"><el-input v-model="policyForm.summary" type="textarea" :rows="2"></el-input></el-form-item>
+              <el-form-item label="内容"><el-input v-model="policyForm.content" type="textarea" :rows="6"></el-input></el-form-item>
+            </el-form>
+            <span slot="footer">
+              <el-button size="small" @click="policyFormVisible = false">取消</el-button>
+              <el-button size="small" type="primary" :loading="policySubmitting" @click="submitPolicy">确定</el-button>
+            </span>
+          </el-dialog>
+        </template>
+
+        <!-- ========== 交流活动 ========== -->
+        <template v-if="currentRoute === '/activity'">
+          <div v-if="!activityDetailId" class="page-card">
+            <div class="page-header">
+              <div class="page-title">交流活动管理</div>
+              <el-button type="primary" icon="el-icon-plus" size="small" @click="openActivityForm()">新增活动</el-button>
+            </div>
+            <div class="filter-bar">
+              <el-input v-model="activityFilter.keyword" placeholder="搜索活动名称/关键词" size="small" prefix-icon="el-icon-search" clearable style="width:240px;" @clear="loadActivity" @keyup.enter.native="loadActivity"></el-input>
+              <el-select v-model="activityFilter.category" placeholder="活动分类" size="small" clearable @change="loadActivity" style="width:160px;">
+                <el-option v-for="c in activityCategories" :key="c" :label="c" :value="c"></el-option>
+              </el-select>
+              <el-button size="small" type="primary" icon="el-icon-search" @click="loadActivity">搜索</el-button>
+              <el-button size="small" icon="el-icon-refresh" @click="resetActivityFilter">重置</el-button>
+            </div>
+            <el-table :data="activityList" v-loading="activityLoading" border stripe style="width:100%;" size="small">
+              <el-table-column prop="id" label="ID" width="70" align="center"></el-table-column>
+              <el-table-column prop="name" label="活动名称" min-width="180" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="category" label="分类" width="120">
+                <template slot-scope="scope">
+                  <el-tag size="mini" type="warning">{{ scope.row.category || '-' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="location" label="地点" width="120" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="start_date" label="开始日期" width="120"></el-table-column>
+              <el-table-column prop="end_date" label="结束日期" width="120"></el-table-column>
+              <el-table-column prop="status" label="状态" width="90" align="center">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="scope.row.status === '已结束' ? 'info' : (scope.row.status === '进行中' ? 'success' : 'warning')">{{ scope.row.status || '待开始' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" align="center" fixed="right">
+                <template slot-scope="scope">
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewActivityDetail(scope.row.id)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-edit" @click="openActivityForm(scope.row)">编辑</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deleteActivity(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="pagination-area">
+              <el-pagination background layout="total, prev, pager, next, sizes" :total="activityTotal" :page-size.sync="activityFilter.page_size" :current-page.sync="activityFilter.page" @current-change="loadActivity" @size-change="handleActivitySizeChange"></el-pagination>
+            </div>
+          </div>
+
+          <div v-else class="detail-card">
+            <div class="detail-header">
+              <div class="detail-title">{{ activityDetailData.name || '活动详情' }}</div>
+              <div>
+                <el-button size="small" icon="el-icon-edit" @click="openActivityForm(activityDetailData)">编辑</el-button>
+                <el-button size="small" icon="el-icon-back" @click="activityDetailId = null; loadActivity();">返回列表</el-button>
+              </div>
+            </div>
+            <div v-loading="activityDetailLoading">
+              <div class="detail-grid">
+                <div class="detail-item" v-for="(val, key) in activityDetailData" :key="key">
+                  <div class="detail-label">{{ getFieldLabel(key) }}</div>
+                  <div class="detail-value" :class="{'content-display': key === 'description' || key === 'content'}">{{ formatFieldValue(key, val) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-dialog :title="activityForm.id ? '编辑活动' : '新增活动'" :visible.sync="activityFormVisible" width="720px" custom-class="form-dialog" :close-on-click-modal="false">
+            <el-form :model="activityForm" ref="activityForm" label-width="90px" size="small">
+              <el-form-item label="活动名称" prop="name" :rules="[{required:true,message:'请输入活动名称'}]"><el-input v-model="activityForm.name"></el-input></el-form-item>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="分类"><el-select v-model="activityForm.category" placeholder="请选择" style="width:100%;">
+                  <el-option v-for="c in activityCategories" :key="c" :label="c" :value="c"></el-option>
+                </el-select></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="状态"><el-select v-model="activityForm.status" placeholder="请选择" style="width:100%;">
+                  <el-option label="待开始" value="待开始"></el-option>
+                  <el-option label="进行中" value="进行中"></el-option>
+                  <el-option label="已结束" value="已结束"></el-option>
+                </el-select></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="开始日期"><el-date-picker v-model="activityForm.start_date" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="结束日期"><el-date-picker v-model="activityForm.end_date" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="地点"><el-input v-model="activityForm.location"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="参与人数"><el-input-number v-model="activityForm.participant_count" :min="0" style="width:100%;"></el-input-number></el-form-item></el-col>
+              </el-row>
+              <el-form-item label="主办方"><el-input v-model="activityForm.organizer"></el-input></el-form-item>
+              <el-form-item label="描述"><el-input v-model="activityForm.description" type="textarea" :rows="4"></el-input></el-form-item>
+            </el-form>
+            <span slot="footer">
+              <el-button size="small" @click="activityFormVisible = false">取消</el-button>
+              <el-button size="small" type="primary" :loading="activitySubmitting" @click="submitActivity">确定</el-button>
+            </span>
+          </el-dialog>
+        </template>
+
+        <!-- ========== 用户管理 ========== -->
+        <template v-if="currentRoute === '/user' && isAdmin">
+          <div class="page-card">
+            <div class="page-header">
+              <div class="page-title">用户管理</div>
+              <el-button type="primary" icon="el-icon-plus" size="small" @click="openUserForm()">新增用户</el-button>
+            </div>
+            <div class="filter-bar">
+              <el-input v-model="userFilter.keyword" placeholder="搜索用户名/姓名" size="small" prefix-icon="el-icon-search" clearable style="width:240px;" @clear="loadUser" @keyup.enter.native="loadUser"></el-input>
+              <el-button size="small" type="primary" icon="el-icon-search" @click="loadUser">搜索</el-button>
+              <el-button size="small" icon="el-icon-refresh" @click="resetUserFilter">重置</el-button>
+            </div>
+            <el-table :data="userList" v-loading="userLoading" border stripe style="width:100%;" size="small">
+              <el-table-column prop="id" label="ID" width="70" align="center"></el-table-column>
+              <el-table-column prop="username" label="用户名" width="140"></el-table-column>
+              <el-table-column prop="real_name" label="真实姓名" width="120"></el-table-column>
+              <el-table-column prop="role" label="角色" width="120">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="scope.row.role === 'admin' ? 'danger' : ''">{{ scope.row.role === 'admin' ? '管理员' : '普通用户' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
+              <el-table-column prop="created_at" label="创建时间" min-width="160"></el-table-column>
+              <el-table-column label="操作" width="160" align="center" fixed="right">
+                <template slot-scope="scope">
+                  <el-button size="mini" type="text" icon="el-icon-edit" @click="openUserForm(scope.row)">编辑</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deleteUser(scope.row)" :disabled="scope.row.username === 'admin'">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="pagination-area">
+              <el-pagination background layout="total, prev, pager, next, sizes" :total="userTotal" :page-size.sync="userFilter.page_size" :current-page.sync="userFilter.page" @current-change="loadUser" @size-change="handleUserSizeChange"></el-pagination>
+            </div>
+          </div>
+
+          <el-dialog :title="userForm.id ? '编辑用户' : '新增用户'" :visible.sync="userFormVisible" width="500px" custom-class="form-dialog" :close-on-click-modal="false">
+            <el-form :model="userForm" ref="userForm" label-width="80px" size="small">
+              <el-form-item label="用户名" prop="username" :rules="[{required:true,message:'请输入用户名'}]">
+                <el-input v-model="userForm.username" :disabled="!!userForm.id"></el-input>
+              </el-form-item>
+              <el-form-item label="密码" :prop="userForm.id ? '' : 'password'" :rules="userForm.id ? [] : [{required:true,message:'请输入密码'}]">
+                <el-input v-model="userForm.password" :placeholder="userForm.id ? '留空则不修改' : '请输入密码'" show-password></el-input>
+              </el-form-item>
+              <el-form-item label="真实姓名"><el-input v-model="userForm.real_name"></el-input></el-form-item>
+              <el-form-item label="联系电话"><el-input v-model="userForm.phone"></el-input></el-form-item>
+              <el-form-item label="角色">
+                <el-select v-model="userForm.role" placeholder="请选择" style="width:100%;">
+                  <el-option label="管理员" value="admin"></el-option>
+                  <el-option label="普通用户" value="user"></el-option>
+                </el-select>
+              </el-form-item>
+            </el-form>
+            <span slot="footer">
+              <el-button size="small" @click="userFormVisible = false">取消</el-button>
+              <el-button size="small" type="primary" :loading="userSubmitting" @click="submitUser">确定</el-button>
+            </span>
+          </el-dialog>
+        </template>
+
+        <!-- ========== 个人设置 ========== -->
+        <template v-if="currentRoute === '/profile'">
+          <div class="page-card profile-container">
+            <div class="profile-header-section">
+              <div class="profile-avatar">{{ userInfo.name ? userInfo.name.charAt(0) : 'A' }}</div>
+              <div class="profile-info">
+                <h3>{{ userInfo.name || '管理员' }}</h3>
+                <p>{{ isAdmin ? '系统管理员' : '普通用户' }}</p>
+              </div>
+            </div>
+            <el-form :model="profileForm" ref="profileForm" label-width="90px" size="small" style="max-width:450px;">
+              <el-form-item label="用户名"><el-input v-model="profileForm.username" disabled></el-input></el-form-item>
+              <el-form-item label="真实姓名"><el-input v-model="profileForm.real_name"></el-input></el-form-item>
+              <el-form-item label="联系电话"><el-input v-model="profileForm.phone"></el-input></el-form-item>
+              <el-divider content-position="left">修改密码</el-divider>
+              <el-form-item label="当前密码"><el-input v-model="profileForm.old_password" type="password" show-password placeholder="不修改密码可留空"></el-input></el-form-item>
+              <el-form-item label="新密码"><el-input v-model="profileForm.new_password" type="password" show-password placeholder="请输入新密码"></el-input></el-form-item>
+              <el-form-item label="确认密码"><el-input v-model="profileForm.confirm_password" type="password" show-password placeholder="再次输入新密码"></el-input></el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="profileSaving" @click="saveProfile">保存修改</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </template>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@2.7.16/dist/vue.min.js"></script>
+<script src="https://unpkg.com/element-ui@2.15.14/lib/index.js"></script>
+<script src="https://unpkg.com/axios@1.7.9/dist/axios.min.js"></script>
+<script src="https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============================
+  // 配置
+  // ============================
+  var API_BASE = '';
+  // 自动检测 API 基础路径
+  (function detectApiBase() {
+    var href = window.location.href;
+    // 如果在 Render 上，直接使用当前域名
+    if (href.indexOf('onrender.com') > -1 || href.indexOf('render.com') > -1) {
+      API_BASE = window.location.origin;
+    } else {
+      // 本地开发：尝试连接常见的后端地址
+      API_BASE = window.location.origin;
+    }
+  })();
+
+  var API_PREFIX = '/vue-admin-template';
+
+  // ============================
+  // 工具函数
+  // ============================
+  function getToken() {
+    var match = document.cookie.match(/Admin-Token=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
+  function setToken(token) {
+    var expires = new Date(Date.now() + 86400000).toUTCString();
+    document.cookie = 'Admin-Token=' + encodeURIComponent(token) + '; path=/; expires=' + expires;
+  }
+
+  function removeToken() {
+    document.cookie = 'Admin-Token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  }
+
+  // ============================
+  // Axios 配置
+  // ============================
+  var api = axios.create({
+    baseURL: API_BASE,
+    timeout: 30000,
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  api.interceptors.request.use(function(config) {
+    var token = getToken();
+    if (token) {
+      config.headers['Authorization'] = 'Bearer ' + token;
+    }
+    // 拼接完整 URL
+    if (config.url && config.url.indexOf(API_PREFIX) === 0) {
+      config.url = API_BASE + config.url;
+    } else if (config.url && config.url.charAt(0) === '/') {
+      config.url = API_BASE + config.url;
+    }
+    return config;
+  }, function(error) {
+    return Promise.reject(error);
+  });
+
+  api.interceptors.response.use(
+    function(response) {
+      var res = response.data;
+      if (res.code && res.code !== 20000) {
+        return Promise.reject(new Error(res.message || '请求失败'));
+      }
+      return res;
+    },
+    function(error) {
+      if (error.response) {
+        if (error.response.status === 401) {
+          removeToken();
+          window.location.hash = '#/login';
+          window.location.reload();
+        }
+        var msg = (error.response.data && error.response.data.message) || error.message || '网络错误';
+        return Promise.reject(new Error(msg));
+      }
+      return Promise.reject(error);
+    }
+  );
+
+  // ============================
+  // 字段映射
+  // ============================
+  var fieldLabels = {
+    id: 'ID', name: '姓名', category: '分类', region: '地区', title: '职务/头衔',
+    organization: '所属机构', phone: '联系电话', email: '邮箱', birthday: '出生日期',
+    remark: '备注', created_at: '创建时间', updated_at: '更新时间',
+    gender: '性别', address: '地址', nationality: '国籍', occupation: '职业',
+    // 政策
+    policy_id: '政策ID', policy_name: '政策名称',
+    // 活动
+    start_date: '开始日期', end_date: '结束日期', location: '地点',
+    organizer: '主办方', participant_count: '参与人数',
+    publish_date: '发布日期', status: '状态', summary: '摘要', content: '内容',
+    description: '描述'
+  };
+
+  // ============================
+  // Vue 应用
+  // ============================
+  new Vue({
+    el: '#app',
+    data: function() {
+      return {
+        // 全局
+        isLoginPage: true,
+        sidebarCollapsed: false,
+        currentRoute: '/dashboard',
+        userInfo: {},
+        loginForm: { username: '', password: '' },
+        loginRules: {
+          username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+          password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+        },
+        loginLoading: false,
+
+        // 仪表盘
+        dashboardOverview: {},
+
+        // 人员
+        personnelList: [], personnelTotal: 0, personnelLoading: false,
+        personnelFilter: { page: 1, page_size: 10, keyword: '', category: '' },
+        personnelFormVisible: false, personnelForm: {}, personnelSubmitting: false,
+        personnelDetailId: null, personnelDetailData: {}, personnelDetailLoading: false,
+        personnelCategories: ['港澳台同胞', '海外侨胞', '归国华侨', '侨眷', '社团领袖', '专家学者', '企业家', '青年代表'],
+
+        // 政策
+        policyList: [], policyTotal: 0, policyLoading: false,
+        policyFilter: { page: 1, page_size: 10, keyword: '', category: '' },
+        policyFormVisible: false, policyForm: {}, policySubmitting: false,
+        policyDetailId: null, policyDetailData: {}, policyDetailLoading: false,
+        policyCategories: ['法律法规', '行政规章', '政策解读', '优惠政策', '签证政策', '居留政策', '教育政策', '就业政策'],
+
+        // 活动
+        activityList: [], activityTotal: 0, activityLoading: false,
+        activityFilter: { page: 1, page_size: 10, keyword: '', category: '' },
+        activityFormVisible: false, activityForm: {}, activitySubmitting: false,
+        activityDetailId: null, activityDetailData: {}, activityDetailLoading: false,
+        activityCategories: ['文化交流', '商务考察', '学术论坛', '联谊活动', '培训研讨', '参观访问', '公益活动', '节庆活动'],
+
+        // 用户
+        userList: [], userTotal: 0, userLoading: false,
+        userFilter: { page: 1, page_size: 10, keyword: '' },
+        userFormVisible: false, userForm: {}, userSubmitting: false,
+
+        // 个人设置
+        profileForm: { username: '', real_name: '', phone: '', old_password: '', new_password: '', confirm_password: '' },
+        profileSaving: false,
+
+        // 图表实例
+        _charts: {}
+      };
+    },
+
+    computed: {
+      isAdmin: function() {
+        return this.userInfo && this.userInfo.roles && this.userInfo.roles.indexOf('admin') > -1;
+      },
+      currentPageName: function() {
+        var map = {
+          '/dashboard': '仪表盘', '/personnel': '人员管理', '/policy': '政策法规',
+          '/activity': '交流活动', '/user': '用户管理', '/profile': '个人设置'
+        };
+        return map[this.currentRoute] || '';
+      }
+    },
+
+    watch: {
+      currentRoute: function(val) {
+        if (val === '/dashboard') {
+          this.$nextTick(function() { this.loadDashboard(); }.bind(this));
+        } else if (val === '/personnel') {
+          this.loadPersonnel();
+        } else if (val === '/policy') {
+          this.loadPolicy();
+        } else if (val === '/activity') {
+          this.loadActivity();
+        } else if (val === '/user') {
+          this.loadUser();
+        } else if (val === '/profile') {
+          this.initProfile();
+        }
+      }
+    },
+
+    created: function() {
+      this.checkAuth();
+      var self = this;
+      window.addEventListener('hashchange', function() {
+        self.handleRouteChange();
+      });
+    },
+
+    methods: {
+      // ---------- 路由 ----------
+      checkAuth: function() {
+        var token = getToken();
+        if (!token) {
+          this.isLoginPage = true;
+          return;
+        }
+        this.fetchUserInfo(token);
+      },
+
+      fetchUserInfo: function(token) {
+        var self = this;
+        api.get(API_PREFIX + '/user/info', { params: { token: token } })
+          .then(function(res) {
+            if (res.code === 20000 && res.data) {
+              self.userInfo = res.data;
+              self.isLoginPage = false;
+              self.handleRouteChange();
+            } else {
+              removeToken();
+              self.isLoginPage = true;
+            }
+          })
+          .catch(function() {
+            removeToken();
+            self.isLoginPage = true;
+          });
+      },
+
+      handleRouteChange: function() {
+        var hash = window.location.hash.replace('#', '') || '/dashboard';
+        if (hash === '/login') {
+          this.isLoginPage = true;
+          return;
+        }
+        this.isLoginPage = false;
+        // 用户管理权限检查
+        if (hash === '/user' && !this.isAdmin) {
+          hash = '/dashboard';
+        }
+        this.currentRoute = hash;
+      },
+
+      handleMenuSelect: function(index) {
+        window.location.hash = '#' + index;
+        this.currentRoute = index;
+      },
+
+      handleCommand: function(cmd) {
+        if (cmd === 'logout') {
+          this.handleLogout();
+        } else if (cmd === 'profile') {
+          window.location.hash = '#/profile';
+          this.currentRoute = '/profile';
+        }
+      },
+
+      // ---------- 登录 ----------
+      handleLogin: function() {
+        var self = this;
+        this.$refs.loginForm.validate(function(valid) {
+          if (!valid) return;
+          self.loginLoading = true;
+          api.post(API_PREFIX + '/user/login', self.loginForm)
+            .then(function(res) {
+              if (res.code === 20000 && res.data && res.data.token) {
+                setToken(res.data.token);
+                self.$message.success('登录成功');
+                self.fetchUserInfo(res.data.token);
+              } else {
+                self.$message.error(res.message || '登录失败');
+              }
+            })
+            .catch(function(err) {
+              self.$message.error(err.message || '登录失败，请检查网络');
+            })
+            .finally(function() {
+              self.loginLoading = false;
+            });
+        });
+      },
+
+      handleLogout: function() {
+        var self = this;
+        this.$confirm('确定要退出登录吗？', '提示', { type: 'warning' })
+          .then(function() {
+            api.post(API_PREFIX + '/user/logout').catch(function() {});
+            removeToken();
+            self.userInfo = {};
+            self.isLoginPage = true;
+            self.loginForm = { username: '', password: '' };
+            window.location.hash = '#/login';
+          })
+          .catch(function() {});
+      },
+
+      // ---------- 仪表盘 ----------
+      loadDashboard: function() {
+        var self = this;
+        api.get(API_PREFIX + '/dashboard/overview').then(function(res) {
+          if (res.code === 20000) {
+            self.dashboardOverview = res.data || {};
+          }
+        }).catch(function() {
+          self.dashboardOverview = { personnel_count: 0, policy_count: 0, activity_count: 0, user_count: 0 };
+        });
+
+        // 加载图表数据
+        this.$nextTick(function() {
+          self.loadDashboardCharts();
+        });
+      },
+
+      loadDashboardCharts: function() {
+        var self = this;
+
+        // 地区统计
+        api.get(API_PREFIX + '/dashboard/region-stats').then(function(res) {
+          if (res.code === 20000 && res.data) {
+            self.renderRegionChart(res.data);
+          }
+        }).catch(function() {
+          self.renderRegionChart([{ name: '香港', value: 128 }, { name: '澳门', value: 56 }, { name: '台湾', value: 89 }, { name: '东南亚', value: 210 }, { name: '北美', value: 145 }, { name: '欧洲', value: 67 }]);
+        });
+
+        // 政策统计
+        api.get(API_PREFIX + '/dashboard/policy-stats').then(function(res) {
+          if (res.code === 20000 && res.data) {
+            self.renderPolicyChart(res.data);
+          }
+        }).catch(function() {
+          self.renderPolicyChart([{ name: '法律法规', value: 32 }, { name: '行政规章', value: 18 }, { name: '优惠政策', value: 25 }, { name: '签证政策', value: 12 }, { name: '教育政策', value: 15 }]);
+        });
+
+        // 活动统计
+        api.get(API_PREFIX + '/dashboard/activity-stats').then(function(res) {
+          if (res.code === 20000 && res.data) {
+            self.renderActivityChart(res.data);
+          }
+        }).catch(function() {
+          self.renderActivityChart([
+            { name: '1月', value: 8 }, { name: '2月', value: 5 }, { name: '3月', value: 12 },
+            { name: '4月', value: 9 }, { name: '5月', value: 15 }, { name: '6月', value: 11 }
+          ]);
+        });
+
+        // 人员分类图表
+        self.renderPersonnelChart([
+          { name: '港澳台同胞', value: 156 }, { name: '海外侨胞', value: 230 },
+          { name: '归国华侨', value: 89 }, { name: '社团领袖', value: 45 },
+          { name: '专家学者', value: 67 }, { name: '企业家', value: 98 }
+        ]);
+      },
+
+      renderRegionChart: function(data) {
+        var self = this;
+        if (!this.$refs.regionChart) return;
+        if (this._charts.region) this._charts.region.dispose();
+        var chart = echarts.init(this.$refs.regionChart);
+        this._charts.region = chart;
+        chart.setOption({
+          tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+          legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
+          color: ['#1a3a6a', '#2d6aaa', '#4a9aea', '#7abafa', '#aadaff', '#cadef5'],
+          series: [{
+            type: 'pie',
+            radius: ['40%', '70%'],
+            center: ['35%', '50%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+            label: { show: false },
+            emphasis: { label: { show: true, fontSize: 14, fontWeight: 'bold' } },
+            data: data
+          }]
+        });
+        window.addEventListener('resize', function() { chart.resize(); });
+      },
+
+      renderPolicyChart: function(data) {
+        if (!this.$refs.policyChart) return;
+        if (this._charts.policy) this._charts.policy.dispose();
+        var chart = echarts.init(this.$refs.policyChart);
+        this._charts.policy = chart;
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: 60, right: 20, top: 20, bottom: 40 },
+          xAxis: { type: 'category', data: data.map(function(d) { return d.name; }), axisLabel: { rotate: 15, fontSize: 11 } },
+          yAxis: { type: 'value', name: '数量' },
+          color: ['#1a3a6a'],
+          series: [{
+            type: 'bar',
+            data: data.map(function(d) { return d.value; }),
+            barWidth: '50%',
+            itemStyle: { borderRadius: [4, 4, 0, 0], color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: '#3a7aca' }, { offset: 1, color: '#1a3a6a' }
+            ])}
+          }]
+        });
+        window.addEventListener('resize', function() { chart.resize(); });
+      },
+
+      renderActivityChart: function(data) {
+        if (!this.$refs.activityChart) return;
+        if (this._charts.activity) this._charts.activity.dispose();
+        var chart = echarts.init(this.$refs.activityChart);
+        this._charts.activity = chart;
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: 50, right: 20, top: 20, bottom: 40 },
+          xAxis: { type: 'category', data: data.map(function(d) { return d.name; }), boundaryGap: false },
+          yAxis: { type: 'value', name: '活动数' },
+          color: ['#e8873a'],
+          series: [{
+            type: 'line',
+            data: data.map(function(d) { return d.value; }),
+            smooth: true,
+            areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(232,135,58,0.3)' }, { offset: 1, color: 'rgba(232,135,58,0.02)' }
+            ])},
+            lineStyle: { width: 3 },
+            symbolSize: 8
+          }]
+        });
+        window.addEventListener('resize', function() { chart.resize(); });
+      },
+
+      renderPersonnelChart: function(data) {
+        if (!this.$refs.personnelChart) return;
+        if (this._charts.personnel) this._charts.personnel.dispose();
+        var chart = echarts.init(this.$refs.personnelChart);
+        this._charts.personnel = chart;
+        chart.setOption({
+          tooltip: { trigger: 'item' },
+          legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
+          color: ['#1a8a5a', '#2daa7a', '#4acaaa', '#7aeaca', '#3a7aca', '#6a3aaa'],
+          series: [{
+            type: 'pie',
+            radius: '65%',
+            center: ['35%', '50%'],
+            roseType: 'area',
+            itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+            label: { show: false },
+            emphasis: { label: { show: true, fontSize: 14 } },
+            data: data
+          }]
+        });
+        window.addEventListener('resize', function() { chart.resize(); });
+      },
+
+      // ---------- 人员管理 ----------
+      loadPersonnel: function() {
+        var self = this;
+        this.personnelLoading = true;
+        api.get(API_PREFIX + '/personnel/list', { params: self.personnelFilter })
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.personnelList = (res.data && res.data.list) || res.data || [];
+              self.personnelTotal = (res.data && res.data.total) || 0;
+            }
+          })
+          .catch(function(err) {
+            self.personnelList = [];
+            self.personnelTotal = 0;
+          })
+          .finally(function() { self.personnelLoading = false; });
+      },
+
+      resetPersonnelFilter: function() {
+        this.personnelFilter = { page: 1, page_size: 10, keyword: '', category: '' };
+        this.loadPersonnel();
+      },
+
+      handlePersonnelSizeChange: function() {
+        this.personnelFilter.page = 1;
+        this.loadPersonnel();
+      },
+
+      openPersonnelForm: function(row) {
+        if (row) {
+          this.personnelForm = JSON.parse(JSON.stringify(row));
+        } else {
+          this.personnelForm = {};
+        }
+        this.personnelFormVisible = true;
+        this.$nextTick(function() {
+          if (this.$refs.personnelForm) this.$refs.personnelForm.clearValidate();
+        });
+      },
+
+      submitPersonnel: function() {
+        var self = this;
+        this.$refs.personnelForm.validate(function(valid) {
+          if (!valid) return;
+          self.personnelSubmitting = true;
+          var isEdit = !!self.personnelForm.id;
+          var url = isEdit ? API_PREFIX + '/personnel/update' : API_PREFIX + '/personnel/create';
+          api.post(url, self.personnelForm)
+            .then(function(res) {
+              if (res.code === 20000) {
+                self.$message.success(isEdit ? '编辑成功' : '新增成功');
+                self.personnelFormVisible = false;
+                self.loadPersonnel();
+              } else {
+                self.$message.error(res.message || '操作失败');
+              }
+            })
+            .catch(function(err) { self.$message.error(err.message || '操作失败'); })
+            .finally(function() { self.personnelSubmitting = false; });
+        });
+      },
+
+      deletePersonnel: function(row) {
+        var self = this;
+        this.$confirm('确定要删除人员 "' + (row.name || '') + '" 吗？此操作不可撤销。', '删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+          .then(function() {
+            api.post(API_PREFIX + '/personnel/delete', { id: row.id })
+              .then(function(res) {
+                if (res.code === 20000) {
+                  self.$message.success('删除成功');
+                  self.loadPersonnel();
+                } else {
+                  self.$message.error(res.message || '删除失败');
+                }
+              })
+              .catch(function(err) { self.$message.error(err.message || '删除失败'); });
+          })
+          .catch(function() {});
+      },
+
+      viewPersonnelDetail: function(id) {
+        var self = this;
+        this.personnelDetailId = id;
+        this.personnelDetailLoading = true;
+        api.get(API_PREFIX + '/personnel/detail', { params: { id: id } })
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.personnelDetailData = res.data || {};
+            }
+          })
+          .catch(function(err) {
+            self.$message.error(err.message || '获取详情失败');
+            self.personnelDetailId = null;
+          })
+          .finally(function() { self.personnelDetailLoading = false; });
+      },
+
+      // ---------- 政策法规 ----------
+      loadPolicy: function() {
+        var self = this;
+        this.policyLoading = true;
+        api.get(API_PREFIX + '/policy/list', { params: self.policyFilter })
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.policyList = (res.data && res.data.list) || res.data || [];
+              self.policyTotal = (res.data && res.data.total) || 0;
+            }
+          })
+          .catch(function() { self.policyList = []; self.policyTotal = 0; })
+          .finally(function() { self.policyLoading = false; });
+      },
+
+      resetPolicyFilter: function() {
+        this.policyFilter = { page: 1, page_size: 10, keyword: '', category: '' };
+        this.loadPolicy();
+      },
+
+      handlePolicySizeChange: function() {
+        this.policyFilter.page = 1;
+        this.loadPolicy();
+      },
+
+      openPolicyForm: function(row) {
+        if (row) {
+          this.policyForm = JSON.parse(JSON.stringify(row));
+        } else {
+          this.policyForm = {};
+        }
+        this.policyFormVisible = true;
+        this.$nextTick(function() {
+          if (this.$refs.policyForm) this.$refs.policyForm.clearValidate();
+        });
+      },
+
+      submitPolicy: function() {
+        var self = this;
+        this.$refs.policyForm.validate(function(valid) {
+          if (!valid) return;
+          self.policySubmitting = true;
+          var isEdit = !!self.policyForm.id;
+          var url = isEdit ? API_PREFIX + '/policy/update' : API_PREFIX + '/policy/create';
+          api.post(url, self.policyForm)
+            .then(function(res) {
+              if (res.code === 20000) {
+                self.$message.success(isEdit ? '编辑成功' : '新增成功');
+                self.policyFormVisible = false;
+                self.loadPolicy();
+              } else {
+                self.$message.error(res.message || '操作失败');
+              }
+            })
+            .catch(function(err) { self.$message.error(err.message || '操作失败'); })
+            .finally(function() { self.policySubmitting = false; });
+        });
+      },
+
+      deletePolicy: function(row) {
+        var self = this;
+        this.$confirm('确定要删除政策 "' + (row.title || '') + '" 吗？此操作不可撤销。', '删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+          .then(function() {
+            api.post(API_PREFIX + '/policy/delete', { id: row.id })
+              .then(function(res) {
+                if (res.code === 20000) {
+                  self.$message.success('删除成功');
+                  self.loadPolicy();
+                } else {
+                  self.$message.error(res.message || '删除失败');
+                }
+              })
+              .catch(function(err) { self.$message.error(err.message || '删除失败'); });
+          })
+          .catch(function() {});
+      },
+
+      viewPolicyDetail: function(id) {
+        var self = this;
+        this.policyDetailId = id;
+        this.policyDetailLoading = true;
+        api.get(API_PREFIX + '/policy/detail', { params: { id: id } })
+          .then(function(res) {
+            if (res.code === 20000) { self.policyDetailData = res.data || {}; }
+          })
+          .catch(function(err) {
+            self.$message.error(err.message || '获取详情失败');
+            self.policyDetailId = null;
+          })
+          .finally(function() { self.policyDetailLoading = false; });
+      },
+
+      // ---------- 交流活动 ----------
+      loadActivity: function() {
+        var self = this;
+        this.activityLoading = true;
+        api.get(API_PREFIX + '/activity/list', { params: self.activityFilter })
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.activityList = (res.data && res.data.list) || res.data || [];
+              self.activityTotal = (res.data && res.data.total) || 0;
+            }
+          })
+          .catch(function() { self.activityList = []; self.activityTotal = 0; })
+          .finally(function() { self.activityLoading = false; });
+      },
+
+      resetActivityFilter: function() {
+        this.activityFilter = { page: 1, page_size: 10, keyword: '', category: '' };
+        this.loadActivity();
+      },
+
+      handleActivitySizeChange: function() {
+        this.activityFilter.page = 1;
+        this.loadActivity();
+      },
+
+      openActivityForm: function(row) {
+        if (row) {
+          this.activityForm = JSON.parse(JSON.stringify(row));
+        } else {
+          this.activityForm = {};
+        }
+        this.activityFormVisible = true;
+        this.$nextTick(function() {
+          if (this.$refs.activityForm) this.$refs.activityForm.clearValidate();
+        });
+      },
+
+      submitActivity: function() {
+        var self = this;
+        this.$refs.activityForm.validate(function(valid) {
+          if (!valid) return;
+          self.activitySubmitting = true;
+          var isEdit = !!self.activityForm.id;
+          var url = isEdit ? API_PREFIX + '/activity/update' : API_PREFIX + '/activity/create';
+          api.post(url, self.activityForm)
+            .then(function(res) {
+              if (res.code === 20000) {
+                self.$message.success(isEdit ? '编辑成功' : '新增成功');
+                self.activityFormVisible = false;
+                self.loadActivity();
+              } else {
+                self.$message.error(res.message || '操作失败');
+              }
+            })
+            .catch(function(err) { self.$message.error(err.message || '操作失败'); })
+            .finally(function() { self.activitySubmitting = false; });
+        });
+      },
+
+      deleteActivity: function(row) {
+        var self = this;
+        this.$confirm('确定要删除活动 "' + (row.name || '') + '" 吗？此操作不可撤销。', '删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+          .then(function() {
+            api.post(API_PREFIX + '/activity/delete', { id: row.id })
+              .then(function(res) {
+                if (res.code === 20000) {
+                  self.$message.success('删除成功');
+                  self.loadActivity();
+                } else {
+                  self.$message.error(res.message || '删除失败');
+                }
+              })
+              .catch(function(err) { self.$message.error(err.message || '删除失败'); });
+          })
+          .catch(function() {});
+      },
+
+      viewActivityDetail: function(id) {
+        var self = this;
+        this.activityDetailId = id;
+        this.activityDetailLoading = true;
+        api.get(API_PREFIX + '/activity/detail', { params: { id: id } })
+          .then(function(res) {
+            if (res.code === 20000) { self.activityDetailData = res.data || {}; }
+          })
+          .catch(function(err) {
+            self.$message.error(err.message || '获取详情失败');
+            self.activityDetailId = null;
+          })
+          .finally(function() { self.activityDetailLoading = false; });
+      },
+
+      // ---------- 用户管理 ----------
+      loadUser: function() {
+        var self = this;
+        this.userLoading = true;
+        api.get(API_PREFIX + '/user/list', { params: self.userFilter })
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.userList = (res.data && res.data.list) || res.data || [];
+              self.userTotal = (res.data && res.data.total) || 0;
+            }
+          })
+          .catch(function() { self.userList = []; self.userTotal = 0; })
+          .finally(function() { self.userLoading = false; });
+      },
+
+      resetUserFilter: function() {
+        this.userFilter = { page: 1, page_size: 10, keyword: '' };
+        this.loadUser();
+      },
+
+      handleUserSizeChange: function() {
+        this.userFilter.page = 1;
+        this.loadUser();
+      },
+
+      openUserForm: function(row) {
+        if (row) {
+          this.userForm = JSON.parse(JSON.stringify(row));
+          this.userForm.password = '';
+        } else {
+          this.userForm = { username: '', password: '', real_name: '', phone: '', role: 'user' };
+        }
+        this.userFormVisible = true;
+        this.$nextTick(function() {
+          if (this.$refs.userForm) this.$refs.userForm.clearValidate();
+        });
+      },
+
+      submitUser: function() {
+        var self = this;
+        this.$refs.userForm.validate(function(valid) {
+          if (!valid) return;
+          self.userSubmitting = true;
+          var isEdit = !!self.userForm.id;
+          var url = isEdit ? API_PREFIX + '/user/update' : API_PREFIX + '/user/create';
+          var payload = Object.assign({}, self.userForm);
+          // 编辑时如果密码为空则不传
+          if (isEdit && !payload.password) {
+            delete payload.password;
+          }
+          api.post(url, payload)
+            .then(function(res) {
+              if (res.code === 20000) {
+                self.$message.success(isEdit ? '编辑成功' : '新增成功');
+                self.userFormVisible = false;
+                self.loadUser();
+              } else {
+                self.$message.error(res.message || '操作失败');
+              }
+            })
+            .catch(function(err) { self.$message.error(err.message || '操作失败'); })
+            .finally(function() { self.userSubmitting = false; });
+        });
+      },
+
+      deleteUser: function(row) {
+        var self = this;
+        if (row.username === 'admin') {
+          this.$message.warning('不能删除管理员账户');
+          return;
+        }
+        this.$confirm('确定要删除用户 "' + (row.username || '') + '" 吗？此操作不可撤销。', '删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+          .then(function() {
+            api.post(API_PREFIX + '/user/delete', { id: row.id })
+              .then(function(res) {
+                if (res.code === 20000) {
+                  self.$message.success('删除成功');
+                  self.loadUser();
+                } else {
+                  self.$message.error(res.message || '删除失败');
+                }
+              })
+              .catch(function(err) { self.$message.error(err.message || '删除失败'); });
+          })
+          .catch(function() {});
+      },
+
+      // ---------- 个人设置 ----------
+      initProfile: function() {
+        this.profileForm = {
+          username: this.userInfo.name || '',
+          real_name: this.userInfo.name || '',
+          phone: this.userInfo.phone || '',
+          old_password: '',
+          new_password: '',
+          confirm_password: ''
+        };
+      },
+
+      saveProfile: function() {
+        var self = this;
+        if (this.profileForm.new_password && this.profileForm.new_password !== this.profileForm.confirm_password) {
+          this.$message.error('两次输入的新密码不一致');
+          return;
+        }
+        this.profileSaving = true;
+        var payload = {
+          id: this.userInfo.id || '',
+          real_name: this.profileForm.real_name,
+          phone: this.profileForm.phone
+        };
+        if (this.profileForm.old_password && this.profileForm.new_password) {
+          payload.old_password = this.profileForm.old_password;
+          payload.new_password = this.profileForm.new_password;
+        }
+        api.post(API_PREFIX + '/user/update', payload)
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.$message.success('保存成功');
+              self.profileForm.old_password = '';
+              self.profileForm.new_password = '';
+              self.profileForm.confirm_password = '';
+            } else {
+              self.$message.error(res.message || '保存失败');
+            }
+          })
+          .catch(function(err) { self.$message.error(err.message || '保存失败'); })
+          .finally(function() { self.profileSaving = false; });
+      },
+
+      // ---------- 工具方法 ----------
+      getCategoryTagType: function(category) {
+        var map = { '港澳台同胞': '', '海外侨胞': 'success', '归国华侨': 'warning', '侨眷': 'info', '社团领袖': 'danger', '专家学者': '', '企业家': 'success', '青年代表': 'warning' };
+        return map[category] || '';
+      },
+
+      getFieldLabel: function(key) {
+        if (fieldLabels[key]) return fieldLabels[key];
+        // 尝试将下划线字段名转为中文
+        return key.replace(/_/g, ' ');
+      },
+
+      formatFieldValue: function(key, val) {
+        if (val === null || val === undefined || val === '') return '-';
+        if (typeof val === 'object') return JSON.stringify(val, null, 2);
+        return String(val);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
