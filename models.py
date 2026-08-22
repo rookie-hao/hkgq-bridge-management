@@ -13,10 +13,6 @@ logger = logging.getLogger(__name__)
 # ============ 工具函数 ============
 
 def _to_datetime(value):
-    """
-    统一转换各种时间格式为 DATETIME 格式字符串 'YYYY-MM-DD HH:MM:SS'。
-    返回 None 表示使用当前时间。
-    """
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -25,13 +21,11 @@ def _to_datetime(value):
         v = value.strip()
         if not v:
             return None
-        # 尝试解析 ISO 8601 格式
         try:
             dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
             return dt.strftime('%Y-%m-%d %H:%M:%S')
         except (ValueError, AttributeError):
             pass
-        # 尝试解析常见日期格式
         patterns = [
             r'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})',
             r'(\d{4})/(\d{2})/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})',
@@ -52,19 +46,16 @@ def _to_datetime(value):
 
 
 def _row_to_dict(row):
-    """将 sqlite3.Row 转换为 dict"""
     if row is None:
         return None
     return dict(row)
 
 
 def _rows_to_list(rows):
-    """将 sqlite3.Row 列表转换为 dict 列表"""
     return [dict(r) for r in rows]
 
 
 def get_db_connection():
-    """获取数据库连接（模块级函数，方便各模型调用）"""
     try:
         connection = sqlite3.connect(Config.SQLITE_DB_PATH)
         connection.row_factory = sqlite3.Row
@@ -96,7 +87,7 @@ def init_db():
             )
         ''')
 
-        # 人员信息表：侨胞/港澳台人员
+        # 人员信息表
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS personnel (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +106,12 @@ def init_db():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # 为 personnel 表添加 category 字段（如果不存在）
+        cursor.execute("PRAGMA table_info(personnel)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'category' not in columns:
+            cursor.execute("ALTER TABLE personnel ADD COLUMN category VARCHAR(30) DEFAULT ''")
 
         # 政策文件表
         cursor.execute('''
@@ -151,6 +148,24 @@ def init_db():
             )
         ''')
 
+        # 工作日记表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS diaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                content TEXT,
+                work_type VARCHAR(30) DEFAULT '日常工作',
+                work_date DATE DEFAULT NULL,
+                location VARCHAR(255) DEFAULT '',
+                participants VARCHAR(500) DEFAULT '',
+                status VARCHAR(20) DEFAULT 'published',
+                attachments TEXT DEFAULT '',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # 插入默认管理员账号
         cursor.execute('SELECT COUNT(*) as count FROM users')
         result = cursor.fetchone()
@@ -163,70 +178,16 @@ def init_db():
                 ('test', '111111', 'user', '测试用户', '', '2026-06-22 14:58:30'),
             ])
 
-        # 插入示例人员数据
-        cursor.execute('SELECT COUNT(*) as count FROM personnel')
-        result = cursor.fetchone()
-        if result['count'] == 0:
-            personnel_data = [
-                ('陈志明', '男', '1975-03-15', 'H12345678', '+852-9876-5432', 'chen@example.com',
-                 '香港', '香港特别行政区九龙城区', '商人', '香港潮州商会', '热心侨务工作'),
-                ('林美玲', '女', '1988-07-22', 'M55667788', '+853-6655-4433', 'lin@example.com',
-                 '澳门', '澳门特别行政区新桥区', '律师', '澳门妇女联合总会', ''),
-                ('王建宏', '男', '1965-11-08', '台湾居民来往大陆通行证T1234567', '+886-2-2345-6789', 'wang@example.com',
-                 '台湾', '台湾台北市大安区', '教授', '台湾同乡会', '致力于两岸文化交流'),
-                ('李秀英', '女', '1990-01-30', '美国护照US9876543', '+1-212-555-0123', 'li@example.com',
-                 '海外侨胞', '美国纽约法拉盛', '工程师', '纽约华人华侨联合会', '华人社区活跃成员'),
-                ('张伟强', '男', '1982-09-12', '香港身份证A123456(7)', '+852-6123-4567', 'zhang@example.com',
-                 '香港', '香港特别行政区湾仔区', '医生', '香港医学会', ''),
-            ]
-            cursor.executemany('''
-                INSERT INTO personnel (name, gender, birth_date, id_number, phone, email, region, address, occupation, organization, remark)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', personnel_data)
-
-        # 插入示例政策文件数据
-        cursor.execute('SELECT COUNT(*) as count FROM policy')
-        result = cursor.fetchone()
-        if result['count'] == 0:
-            policy_data = [
-                ('关于进一步加强为侨服务工作的意见', '国务院侨务办公室', '2023-06-15', '国侨发〔2023〕12号',
-                 '为进一步做好为侨服务工作，保障海外侨胞和归侨侨眷合法权益，提出以下意见...', '', '惠侨政策', '有效'),
-                ('港澳居民在内地求学就业若干政策措施', '国务院港澳事务办公室', '2023-09-01', '港澳办发〔2023〕8号',
-                 '为便利港澳居民在内地学习、就业、创业，现将有关政策措施通知如下...', '', '涉港政策', '有效'),
-                ('台湾同胞投资保护法实施细则（修订）', '国务院台湾事务办公室', '2022-12-01', '国台发〔2022〕15号',
-                 '根据《中华人民共和国台湾同胞投资保护法》，制定本实施细则...', '', '涉台政策', '有效'),
-                ('澳门特别行政区参与"一带一路"建设指导意见', '国务院港澳事务办公室', '2024-01-20', '港澳办发〔2024〕2号',
-                 '支持澳门发挥独特优势，积极参与"一带一路"建设...', '', '涉澳政策', '有效'),
-                ('海外侨胞参与国内创新创业支持办法', '国务院侨务办公室', '2023-03-10', '国侨发〔2023〕5号',
-                 '鼓励和支持海外侨胞回国创新创业，提供政策扶持和资金引导...', '', '惠侨政策', '待生效'),
-            ]
-            cursor.executemany('''
-                INSERT INTO policy (title, issuer, publish_date, doc_number, summary, attachment_path, category, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', policy_data)
-
-        # 插入示例活动数据
-        cursor.execute('SELECT COUNT(*) as count FROM activity')
-        result = cursor.fetchone()
-        if result['count'] == 0:
-            activity_data = [
-                ('2024年海外侨胞新春联谊会', '交流会', '2024-02-10 14:00:00', '2024-02-10 17:00:00',
-                 '北京人民大会堂', '李明', 200, '已结束', '邀请海外侨胞代表共庆新春，共话发展。'),
-                ('港澳台青年创新创业座谈会', '座谈会', '2024-05-15 09:00:00', '2024-05-15 17:00:00',
-                 '深圳前海深港青年梦工场', '王芳', 80, '已结束', '围绕港澳台青年在内地创业发展进行交流。'),
-                ('粤港澳大湾区文化交流节', '文化节', '2024-08-01 10:00:00', '2024-08-03 18:00:00',
-                 '广州天河体育中心', '张伟', 500, '未开始', '展示粤港澳三地文化特色，促进文化交流与融合。'),
-                ('侨胞专场人才招聘会', '招聘会', '2024-06-20 09:00:00', '2024-06-20 16:00:00',
-                 '上海国际会议中心', '刘静', 300, '进行中', '为归国侨胞提供高质量就业机会。'),
-                ('两岸青年夏令营', '其他', '2024-07-10 08:00:00', '2024-07-15 18:00:00',
-                 '厦门大学', '陈华', 150, '未开始', '组织两岸青年开展文化参访与交流活动。'),
-            ]
-            cursor.executemany('''
-                INSERT INTO activity (name, activity_type, start_time, end_time, location, organizer, max_participants, status, description)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', activity_data)
-
         connection.commit()
+        logger.info('✅ 数据库表结构初始化完成')
+
+        # 自动填充样例数据（当各表为空时）
+        try:
+            from seed_data import seed_all
+            seed_all(connection)
+        except Exception as seed_err:
+            logger.warning(f'样例数据填充跳过: {seed_err}')
+
         logger.info('✅ 数据库初始化完成 - 港澳台侨管理库系统')
     except Exception as e:
         logger.error(f'❌ 数据库初始化错误: {str(e)}')
@@ -352,14 +313,13 @@ class User:
             connection.close()
 
 
-# ============ Personnel 模型：港澳台侨人员信息 ============
+# ============ Personnel 模型 ============
 
 class Personnel:
     """港澳台侨人员信息模型"""
 
     @staticmethod
     def get_all(page=1, limit=10, keyword='', region=''):
-        """获取人员列表，支持关键词搜索和地区筛选，分页"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -372,10 +332,8 @@ class Personnel:
             if region:
                 where += ' AND region = ?'
                 params.append(region)
-
             cursor.execute(f'SELECT COUNT(*) as total FROM personnel {where}', params)
             total = cursor.fetchone()['total']
-
             offset = (page - 1) * limit
             cursor.execute(f'''
                 SELECT * FROM personnel {where}
@@ -383,14 +341,12 @@ class Personnel:
                 LIMIT ? OFFSET ?
             ''', params + [limit, offset])
             items = _rows_to_list(cursor.fetchall())
-
             return {'total': total, 'items': items}
         finally:
             connection.close()
 
     @staticmethod
     def get_by_id(person_id):
-        """根据ID获取人员详情"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -401,17 +357,16 @@ class Personnel:
 
     @staticmethod
     def create(name, gender='', birth_date=None, id_number='', phone='', email='',
-               region='', address='', occupation='', organization='', remark=''):
-        """创建人员记录"""
+               region='', address='', occupation='', organization='', remark='', category=''):
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
             cursor.execute('''
                 INSERT INTO personnel (name, gender, birth_date, id_number, phone, email,
-                                       region, address, occupation, organization, remark)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       region, address, occupation, organization, remark, category)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (name, gender, birth_date, id_number, phone, email,
-                  region, address, occupation, organization, remark))
+                  region, address, occupation, organization, remark, category))
             connection.commit()
             return cursor.lastrowid
         finally:
@@ -419,23 +374,20 @@ class Personnel:
 
     @staticmethod
     def update(person_id, **kwargs):
-        """更新人员信息"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
             person = Personnel.get_by_id(person_id)
             if not person:
                 return None
-
             updatable = ['name', 'gender', 'birth_date', 'id_number', 'phone', 'email',
-                         'region', 'address', 'occupation', 'organization', 'remark']
+                         'region', 'address', 'occupation', 'organization', 'remark', 'category']
             updates = []
             params = []
             for field in updatable:
                 if field in kwargs and kwargs[field] is not None:
                     updates.append(f'{field}=?')
                     params.append(kwargs[field])
-
             if updates:
                 params.append(person_id)
                 cursor.execute(f'UPDATE personnel SET {", ".join(updates)} WHERE id=?', params)
@@ -446,7 +398,6 @@ class Personnel:
 
     @staticmethod
     def delete(person_id):
-        """删除人员记录"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -457,14 +408,13 @@ class Personnel:
             connection.close()
 
 
-# ============ Policy 模型：政策文件 ============
+# ============ Policy 模型 ============
 
 class Policy:
     """港澳台侨政策文件模型"""
 
     @staticmethod
     def get_all(page=1, limit=10, keyword='', category='', status=''):
-        """获取政策列表，支持关键词搜索、分类筛选、状态筛选，分页"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -480,10 +430,8 @@ class Policy:
             if status:
                 where += ' AND status = ?'
                 params.append(status)
-
             cursor.execute(f'SELECT COUNT(*) as total FROM policy {where}', params)
             total = cursor.fetchone()['total']
-
             offset = (page - 1) * limit
             cursor.execute(f'''
                 SELECT * FROM policy {where}
@@ -491,14 +439,12 @@ class Policy:
                 LIMIT ? OFFSET ?
             ''', params + [limit, offset])
             items = _rows_to_list(cursor.fetchall())
-
             return {'total': total, 'items': items}
         finally:
             connection.close()
 
     @staticmethod
     def get_by_id(policy_id):
-        """根据ID获取政策详情"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -510,7 +456,6 @@ class Policy:
     @staticmethod
     def create(title, issuer='', publish_date=None, doc_number='', summary='',
                attachment_path='', category='', status='有效'):
-        """创建政策文件记录"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -527,14 +472,12 @@ class Policy:
 
     @staticmethod
     def update(policy_id, **kwargs):
-        """更新政策文件信息"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
             policy = Policy.get_by_id(policy_id)
             if not policy:
                 return None
-
             updatable = ['title', 'issuer', 'publish_date', 'doc_number', 'summary',
                          'attachment_path', 'category', 'status']
             updates = []
@@ -543,7 +486,6 @@ class Policy:
                 if field in kwargs and kwargs[field] is not None:
                     updates.append(f'{field}=?')
                     params.append(kwargs[field])
-
             if updates:
                 params.append(policy_id)
                 cursor.execute(f'UPDATE policy SET {", ".join(updates)} WHERE id=?', params)
@@ -554,7 +496,6 @@ class Policy:
 
     @staticmethod
     def delete(policy_id):
-        """删除政策文件记录"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -565,14 +506,13 @@ class Policy:
             connection.close()
 
 
-# ============ Activity 模型：活动管理 ============
+# ============ Activity 模型 ============
 
 class Activity:
     """港澳台侨活动管理模型"""
 
     @staticmethod
     def get_all(page=1, limit=10, keyword='', activity_type='', status=''):
-        """获取活动列表，支持关键词搜索、类型筛选、状态筛选，分页"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -588,10 +528,8 @@ class Activity:
             if status:
                 where += ' AND status = ?'
                 params.append(status)
-
             cursor.execute(f'SELECT COUNT(*) as total FROM activity {where}', params)
             total = cursor.fetchone()['total']
-
             offset = (page - 1) * limit
             cursor.execute(f'''
                 SELECT * FROM activity {where}
@@ -599,14 +537,12 @@ class Activity:
                 LIMIT ? OFFSET ?
             ''', params + [limit, offset])
             items = _rows_to_list(cursor.fetchall())
-
             return {'total': total, 'items': items}
         finally:
             connection.close()
 
     @staticmethod
     def get_by_id(activity_id):
-        """根据ID获取活动详情"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -618,7 +554,6 @@ class Activity:
     @staticmethod
     def create(name, activity_type='', start_time=None, end_time=None, location='',
                organizer='', max_participants=0, status='未开始', description=''):
-        """创建活动记录"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
@@ -637,14 +572,12 @@ class Activity:
 
     @staticmethod
     def update(activity_id, **kwargs):
-        """更新活动信息"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
             activity = Activity.get_by_id(activity_id)
             if not activity:
                 return None
-
             updatable = ['name', 'activity_type', 'start_time', 'end_time', 'location',
                          'organizer', 'max_participants', 'status', 'description']
             updates = []
@@ -657,7 +590,6 @@ class Activity:
                         val = kwargs[field]
                     updates.append(f'{field}=?')
                     params.append(val)
-
             if updates:
                 params.append(activity_id)
                 cursor.execute(f'UPDATE activity SET {", ".join(updates)} WHERE id=?', params)
@@ -668,12 +600,185 @@ class Activity:
 
     @staticmethod
     def delete(activity_id):
-        """删除活动记录"""
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
             cursor.execute('DELETE FROM activity WHERE id = ?', (activity_id,))
             connection.commit()
             return cursor.rowcount > 0
+        finally:
+            connection.close()
+
+
+# ============ Diary 模型：工作日记 ============
+
+class Diary:
+    """工作日记模型"""
+    TABLE = 'diaries'
+
+    @staticmethod
+    def init_table():
+        """确保 diaries 表存在"""
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS diaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    content TEXT,
+                    work_type VARCHAR(30) DEFAULT '日常工作',
+                    work_date DATE DEFAULT NULL,
+                    location VARCHAR(255) DEFAULT '',
+                    participants VARCHAR(500) DEFAULT '',
+                    status VARCHAR(20) DEFAULT 'published',
+                    attachments TEXT DEFAULT '',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            connection.commit()
+        finally:
+            connection.close()
+
+    @staticmethod
+    def find_all(page=1, page_size=10, keyword='', work_type='', user_id=None, start_date='', end_date=''):
+        """分页查询，支持关键词搜索、类型筛选、日期范围筛选"""
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            where = 'WHERE 1=1'
+            params = []
+            if keyword:
+                where += ' AND (d.title LIKE ? OR d.content LIKE ? OR d.location LIKE ? OR d.participants LIKE ?)'
+                like_kw = f'%{keyword}%'
+                params.extend([like_kw, like_kw, like_kw, like_kw])
+            if work_type:
+                where += ' AND d.work_type = ?'
+                params.append(work_type)
+            if user_id is not None:
+                where += ' AND d.user_id = ?'
+                params.append(user_id)
+            if start_date:
+                where += ' AND d.work_date >= ?'
+                params.append(start_date)
+            if end_date:
+                where += ' AND d.work_date <= ?'
+                params.append(end_date)
+
+            cursor.execute(f'SELECT COUNT(*) as total FROM diaries d {where}', params)
+            total = cursor.fetchone()['total']
+
+            offset = (page - 1) * page_size
+            cursor.execute(f'''
+                SELECT d.*, u.name as author_name
+                FROM diaries d
+                LEFT JOIN users u ON d.user_id = u.id
+                {where}
+                ORDER BY d.work_date DESC, d.created_at DESC
+                LIMIT ? OFFSET ?
+            ''', params + [page_size, offset])
+            items = _rows_to_list(cursor.fetchall())
+            return {'total': total, 'items': items}
+        finally:
+            connection.close()
+
+    @staticmethod
+    def find_by_id(diary_id):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('''
+                SELECT d.*, u.name as author_name
+                FROM diaries d
+                LEFT JOIN users u ON d.user_id = u.id
+                WHERE d.id = ?
+            ''', (diary_id,))
+            return _row_to_dict(cursor.fetchone())
+        finally:
+            connection.close()
+
+    @staticmethod
+    def create(data):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('''
+                INSERT INTO diaries (user_id, title, content, work_type, work_date,
+                                     location, participants, status, attachments)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                data.get('user_id'),
+                data.get('title', ''),
+                data.get('content', ''),
+                data.get('work_type', '日常工作'),
+                data.get('work_date'),
+                data.get('location', ''),
+                data.get('participants', ''),
+                data.get('status', 'published'),
+                data.get('attachments', '')
+            ))
+            connection.commit()
+            return cursor.lastrowid
+        finally:
+            connection.close()
+
+    @staticmethod
+    def update(diary_id, data):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            diary = Diary.find_by_id(diary_id)
+            if not diary:
+                return None
+            updatable = ['title', 'content', 'work_type', 'work_date',
+                         'location', 'participants', 'status', 'attachments']
+            updates = []
+            params = []
+            for field in updatable:
+                if field in data and data[field] is not None:
+                    updates.append(f'{field}=?')
+                    params.append(data[field])
+            if updates:
+                updates.append('updated_at=?')
+                params.append(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                params.append(diary_id)
+                cursor.execute(f'UPDATE diaries SET {", ".join(updates)} WHERE id=?', params)
+                connection.commit()
+            return diary_id
+        finally:
+            connection.close()
+
+    @staticmethod
+    def delete(diary_id):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            cursor.execute('DELETE FROM diaries WHERE id = ?', (diary_id,))
+            connection.commit()
+            return cursor.rowcount > 0
+        finally:
+            connection.close()
+
+    @staticmethod
+    def count(keyword='', work_type='', user_id=None):
+        connection = get_db_connection()
+        try:
+            cursor = connection.cursor()
+            where = 'WHERE 1=1'
+            params = []
+            if keyword:
+                where += ' AND (title LIKE ? OR content LIKE ?)'
+                like_kw = f'%{keyword}%'
+                params.extend([like_kw, like_kw])
+            if work_type:
+                where += ' AND work_type = ?'
+                params.append(work_type)
+            if user_id is not None:
+                where += ' AND user_id = ?'
+                params.append(user_id)
+            cursor.execute(f'SELECT COUNT(*) as total FROM diaries {where}', params)
+            return cursor.fetchone()['total']
         finally:
             connection.close()

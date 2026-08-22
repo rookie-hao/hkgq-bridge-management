@@ -237,6 +237,48 @@
     }
     .chart-container { width: 100%; height: 320px; }
 
+    /* 最近日记卡片 */
+    .recent-diary-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .recent-diary-card .chart-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a2a4a;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .recent-diary-list { list-style: none; padding: 0; }
+    .recent-diary-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f5f5f5;
+      transition: background 0.2s;
+    }
+    .recent-diary-list li:hover { background: #f8f9fb; }
+    .recent-diary-list li:last-child { border-bottom: none; }
+    .recent-diary-list .diary-title-text {
+      font-size: 14px;
+      color: #333;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 16px;
+    }
+    .recent-diary-list .diary-date-text {
+      font-size: 12px;
+      color: #999;
+      flex-shrink: 0;
+    }
+
     /* ========== 列表页通用 ========== */
     .page-card {
       background: #fff;
@@ -312,6 +354,25 @@
       font-size: 13px;
     }
     .detail-item .detail-value { color: #333; font-size: 14px; word-break: break-all; }
+    .detail-item.full-width {
+      grid-column: 1 / -1;
+      border-right: none !important;
+    }
+
+    /* ========== 详情弹窗 ========== */
+    .detail-dialog-item {
+      margin-bottom: 14px;
+    }
+    .detail-dialog-item .ddl {
+      font-size: 13px;
+      color: #8899aa;
+      margin-bottom: 4px;
+    }
+    .detail-dialog-item .ddv {
+      font-size: 14px;
+      color: #333;
+      line-height: 1.6;
+    }
 
     /* ========== 个人设置 ========== */
     .profile-container { max-width: 600px; }
@@ -397,6 +458,7 @@
 
   <!-- 主应用 -->
   <div v-else class="app-wrapper">
+
     <!-- 侧边栏 -->
     <div class="sidebar-container" :class="{collapsed: sidebarCollapsed}">
       <div class="sidebar-logo">
@@ -428,6 +490,10 @@
         <el-menu-item index="/activity">
           <i class="el-icon-s-flag"></i>
           <span slot="title">交流活动</span>
+        </el-menu-item>
+        <el-menu-item index="/diary">
+          <i class="el-icon-edit"></i>
+          <span slot="title">工作日记</span>
         </el-menu-item>
         <el-menu-item index="/user" v-if="isAdmin">
           <i class="el-icon-s-custom"></i>
@@ -523,11 +589,27 @@
               <div class="chart-container" ref="personnelChart"></div>
             </div>
           </div>
+          <div class="dashboard-charts">
+            <div class="chart-card">
+              <div class="chart-title">日记类型分布</div>
+              <div class="chart-container" ref="diaryChart"></div>
+            </div>
+            <div class="recent-diary-card">
+              <div class="chart-title">最近工作日记</div>
+              <ul class="recent-diary-list" v-if="recentDiaryList.length > 0">
+                <li v-for="item in recentDiaryList" :key="item.id">
+                  <span class="diary-title-text">{{ item.title }}</span>
+                  <span class="diary-date-text">{{ item.work_date || '-' }}</span>
+                </li>
+              </ul>
+              <div v-else style="text-align:center;padding:40px;color:#bbb;">暂无日记</div>
+            </div>
+          </div>
         </template>
 
         <!-- ========== 人员管理 ========== -->
         <template v-if="currentRoute === '/personnel'">
-          <div v-if="!personnelDetailId" class="page-card">
+          <div class="page-card">
             <div class="page-header">
               <div class="page-title">人员管理</div>
               <el-button type="primary" icon="el-icon-plus" size="small" @click="openPersonnelForm()">新增人员</el-button>
@@ -553,58 +635,76 @@
               <el-table-column prop="organization" label="所属机构" min-width="140" show-overflow-tooltip></el-table-column>
               <el-table-column label="操作" width="200" align="center" fixed="right">
                 <template slot-scope="scope">
-                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewPersonnelDetail(scope.row.id)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewPersonnelDetail(scope.row)">详情</el-button>
                   <el-button size="mini" type="text" icon="el-icon-edit" @click="openPersonnelForm(scope.row)">编辑</el-button>
                   <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deletePersonnel(scope.row)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
+            <el-empty v-if="!personnelLoading && personnelList.length === 0" description="暂无数据"></el-empty>
             <div class="pagination-area">
               <el-pagination background layout="total, prev, pager, next, sizes" :total="personnelTotal" :page-size.sync="personnelFilter.page_size" :current-page.sync="personnelFilter.page" @current-change="loadPersonnel" @size-change="handlePersonnelSizeChange"></el-pagination>
             </div>
           </div>
 
-          <!-- 人员详情 -->
-          <div v-else class="detail-card">
-            <div class="detail-header">
-              <div class="detail-title">{{ personnelDetailData.name || '人员详情' }}</div>
-              <div>
-                <el-button size="small" icon="el-icon-edit" @click="openPersonnelForm(personnelDetailData)">编辑</el-button>
-                <el-button size="small" icon="el-icon-back" @click="personnelDetailId = null; loadPersonnel();">返回列表</el-button>
-              </div>
-            </div>
+          <!-- 人员详情弹窗 -->
+          <el-dialog title="人员详情" :visible.sync="personnelDetailVisible" width="700px" :close-on-click-modal="false">
             <div v-loading="personnelDetailLoading">
-              <div class="detail-grid">
-                <div class="detail-item" v-for="(val, key) in personnelDetailData" :key="key">
-                  <div class="detail-label">{{ getFieldLabel(key) }}</div>
-                  <div class="detail-value">{{ formatFieldValue(key, val) }}</div>
-                </div>
-              </div>
+              <div class="detail-dialog-item"><div class="ddl">姓名</div><div class="ddv">{{ personnelDetailData.name || '-' }}</div></div>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">性别</div><div class="ddv">{{ personnelDetailData.gender || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">出生日期</div><div class="ddv">{{ personnelDetailData.birthday || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">证件号码</div><div class="ddv">{{ personnelDetailData.id_number || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">联系电话</div><div class="ddv">{{ personnelDetailData.phone || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">邮箱</div><div class="ddv">{{ personnelDetailData.email || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">所属地区</div><div class="ddv">{{ personnelDetailData.region || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">人员类别</div><div class="ddv"><el-tag size="small" v-if="personnelDetailData.category">{{ personnelDetailData.category }}</el-tag><span v-else>-</span></div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">工作单位</div><div class="ddv">{{ personnelDetailData.organization || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">职务</div><div class="ddv">{{ personnelDetailData.title || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">专业领域</div><div class="ddv">{{ personnelDetailData.specialty || '-' }}</div></div></el-col>
+              </el-row>
+              <div class="detail-dialog-item"><div class="ddl">主要成就</div><div class="ddv content-display">{{ personnelDetailData.achievements || '-' }}</div></div>
+              <div class="detail-dialog-item"><div class="ddl">个人简介</div><div class="ddv content-display">{{ personnelDetailData.remark || '-' }}</div></div>
             </div>
-          </div>
+            <span slot="footer"><el-button size="small" @click="personnelDetailVisible = false">关闭</el-button></span>
+          </el-dialog>
 
           <!-- 人员表单弹窗 -->
-          <el-dialog :title="personnelForm.id ? '编辑人员' : '新增人员'" :visible.sync="personnelFormVisible" width="680px" custom-class="form-dialog" :close-on-click-modal="false">
+          <el-dialog :title="personnelForm.id ? '编辑人员' : '新增人员'" :visible.sync="personnelFormVisible" width="600px" custom-class="form-dialog" :close-on-click-modal="false">
             <el-form :model="personnelForm" ref="personnelForm" label-width="90px" size="small">
               <el-row :gutter="16">
                 <el-col :span="12"><el-form-item label="姓名" prop="name" :rules="[{required:true,message:'请输入姓名'}]"><el-input v-model="personnelForm.name"></el-input></el-form-item></el-col>
-                <el-col :span="12"><el-form-item label="分类" prop="category"><el-select v-model="personnelForm.category" placeholder="请选择" style="width:100%;">
+                <el-col :span="12"><el-form-item label="性别"><el-select v-model="personnelForm.gender" placeholder="请选择" style="width:100%;"><el-option label="男" value="男"></el-option><el-option label="女" value="女"></el-option></el-select></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="出生日期"><el-date-picker v-model="personnelForm.birthday" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="证件号码"><el-input v-model="personnelForm.id_number"></el-input></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="联系电话"><el-input v-model="personnelForm.phone"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="邮箱"><el-input v-model="personnelForm.email"></el-input></el-form-item></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="所属地区"><el-input v-model="personnelForm.region"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="人员类别"><el-select v-model="personnelForm.category" placeholder="请选择" style="width:100%;">
                   <el-option v-for="c in personnelCategories" :key="c" :label="c" :value="c"></el-option>
                 </el-select></el-form-item></el-col>
               </el-row>
               <el-row :gutter="16">
-                <el-col :span="12"><el-form-item label="地区"><el-input v-model="personnelForm.region"></el-input></el-form-item></el-col>
-                <el-col :span="12"><el-form-item label="职务/头衔"><el-input v-model="personnelForm.title"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="工作单位"><el-input v-model="personnelForm.organization"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="职务"><el-input v-model="personnelForm.title"></el-input></el-form-item></el-col>
               </el-row>
-              <el-row :gutter="16">
-                <el-col :span="12"><el-form-item label="所属机构"><el-input v-model="personnelForm.organization"></el-input></el-form-item></el-col>
-                <el-col :span="12"><el-form-item label="联系电话"><el-input v-model="personnelForm.phone"></el-input></el-form-item></el-col>
-              </el-row>
-              <el-row :gutter="16">
-                <el-col :span="12"><el-form-item label="邮箱"><el-input v-model="personnelForm.email"></el-input></el-form-item></el-col>
-                <el-col :span="12"><el-form-item label="出生日期"><el-date-picker v-model="personnelForm.birthday" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
-              </el-row>
-              <el-form-item label="备注"><el-input v-model="personnelForm.remark" type="textarea" :rows="3"></el-input></el-form-item>
+              <el-form-item label="专业领域"><el-input v-model="personnelForm.specialty"></el-input></el-form-item>
+              <el-form-item label="主要成就"><el-input v-model="personnelForm.achievements" type="textarea" :rows="2"></el-input></el-form-item>
+              <el-form-item label="个人简介"><el-input v-model="personnelForm.remark" type="textarea" :rows="3"></el-input></el-form-item>
             </el-form>
             <span slot="footer">
               <el-button size="small" @click="personnelFormVisible = false">取消</el-button>
@@ -615,7 +715,7 @@
 
         <!-- ========== 政策法规 ========== -->
         <template v-if="currentRoute === '/policy'">
-          <div v-if="!policyDetailId" class="page-card">
+          <div class="page-card">
             <div class="page-header">
               <div class="page-title">政策法规管理</div>
               <el-button type="primary" icon="el-icon-plus" size="small" @click="openPolicyForm()">新增政策</el-button>
@@ -640,43 +740,56 @@
               <el-table-column prop="publish_date" label="发布日期" width="120"></el-table-column>
               <el-table-column prop="status" label="状态" width="90" align="center">
                 <template slot-scope="scope">
-                  <el-tag size="mini" :type="scope.row.status === '已发布' ? 'success' : 'info'">{{ scope.row.status || '草稿' }}</el-tag>
+                  <el-tag size="mini" :type="scope.row.status === '有效' ? 'success' : (scope.row.status === '已废止' ? 'danger' : 'info')">{{ scope.row.status || '待实施' }}</el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="操作" width="200" align="center" fixed="right">
                 <template slot-scope="scope">
-                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewPolicyDetail(scope.row.id)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewPolicyDetail(scope.row)">详情</el-button>
                   <el-button size="mini" type="text" icon="el-icon-edit" @click="openPolicyForm(scope.row)">编辑</el-button>
                   <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deletePolicy(scope.row)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
+            <el-empty v-if="!policyLoading && policyList.length === 0" description="暂无数据"></el-empty>
             <div class="pagination-area">
               <el-pagination background layout="total, prev, pager, next, sizes" :total="policyTotal" :page-size.sync="policyFilter.page_size" :current-page.sync="policyFilter.page" @current-change="loadPolicy" @size-change="handlePolicySizeChange"></el-pagination>
             </div>
           </div>
 
-          <div v-else class="detail-card">
-            <div class="detail-header">
-              <div class="detail-title">{{ policyDetailData.title || '政策详情' }}</div>
-              <div>
-                <el-button size="small" icon="el-icon-edit" @click="openPolicyForm(policyDetailData)">编辑</el-button>
-                <el-button size="small" icon="el-icon-back" @click="policyDetailId = null; loadPolicy();">返回列表</el-button>
-              </div>
-            </div>
+          <!-- 政策详情弹窗 -->
+          <el-dialog title="政策详情" :visible.sync="policyDetailVisible" width="700px" :close-on-click-modal="false">
             <div v-loading="policyDetailLoading">
-              <div class="detail-grid">
-                <div class="detail-item" v-for="(val, key) in policyDetailData" :key="key">
-                  <div class="detail-label">{{ getFieldLabel(key) }}</div>
-                  <div class="detail-value" :class="{'content-display': key === 'content'}">{{ formatFieldValue(key, val) }}</div>
-                </div>
-              </div>
+              <div class="detail-dialog-item"><div class="ddl">标题</div><div class="ddv" style="font-size:16px;font-weight:600;">{{ policyDetailData.title || '-' }}</div></div>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">政策编号</div><div class="ddv">{{ policyDetailData.policy_id || policyDetailData.policy_number || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">发布机关</div><div class="ddv">{{ policyDetailData.publish_org || policyDetailData.department || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">发布日期</div><div class="ddv">{{ policyDetailData.publish_date || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">生效日期</div><div class="ddv">{{ policyDetailData.effective_date || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">政策类别</div><div class="ddv"><el-tag size="small" v-if="policyDetailData.category">{{ policyDetailData.category }}</el-tag><span v-else>-</span></div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">适用地区</div><div class="ddv">{{ policyDetailData.region || '-' }}</div></div></el-col>
+              </el-row>
+              <div class="detail-dialog-item"><div class="ddl">状态</div><div class="ddv">
+                <el-tag size="small" :type="(policyDetailData.status||'') === '有效' ? 'success' : ((policyDetailData.status||'') === '已废止' ? 'danger' : 'info')">{{ policyDetailData.status || '待实施' }}</el-tag>
+              </div></div>
+              <div class="detail-dialog-item"><div class="ddl">政策摘要</div><div class="ddv content-display">{{ policyDetailData.summary || '-' }}</div></div>
+              <div class="detail-dialog-item"><div class="ddl">政策内容全文</div><div class="ddv content-display">{{ policyDetailData.content || '-' }}</div></div>
             </div>
-          </div>
+            <span slot="footer"><el-button size="small" @click="policyDetailVisible = false">关闭</el-button></span>
+          </el-dialog>
 
-          <el-dialog :title="policyForm.id ? '编辑政策' : '新增政策'" :visible.sync="policyFormVisible" width="720px" custom-class="form-dialog" :close-on-click-modal="false">
+          <!-- 政策表单弹窗 -->
+          <el-dialog :title="policyForm.id ? '编辑政策' : '新增政策'" :visible.sync="policyFormVisible" width="600px" custom-class="form-dialog" :close-on-click-modal="false">
             <el-form :model="policyForm" ref="policyForm" label-width="90px" size="small">
               <el-form-item label="标题" prop="title" :rules="[{required:true,message:'请输入标题'}]"><el-input v-model="policyForm.title"></el-input></el-form-item>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="政策编号"><el-input v-model="policyForm.policy_number"></el-input></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="发布机关"><el-input v-model="policyForm.publish_org"></el-input></el-form-item></el-col>
+              </el-row>
               <el-row :gutter="16">
                 <el-col :span="12"><el-form-item label="分类"><el-select v-model="policyForm.category" placeholder="请选择" style="width:100%;">
                   <el-option v-for="c in policyCategories" :key="c" :label="c" :value="c"></el-option>
@@ -685,12 +798,13 @@
               </el-row>
               <el-row :gutter="16">
                 <el-col :span="12"><el-form-item label="发布日期"><el-date-picker v-model="policyForm.publish_date" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
-                <el-col :span="12"><el-form-item label="状态"><el-select v-model="policyForm.status" placeholder="请选择" style="width:100%;">
-                  <el-option label="已发布" value="已发布"></el-option>
-                  <el-option label="草稿" value="草稿"></el-option>
-                  <el-option label="已废止" value="已废止"></el-option>
-                </el-select></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="生效日期"><el-date-picker v-model="policyForm.effective_date" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
               </el-row>
+              <el-form-item label="状态"><el-select v-model="policyForm.status" placeholder="请选择" style="width:100%;">
+                <el-option label="有效" value="有效"></el-option>
+                <el-option label="已废止" value="已废止"></el-option>
+                <el-option label="待实施" value="待实施"></el-option>
+              </el-select></el-form-item>
               <el-form-item label="摘要"><el-input v-model="policyForm.summary" type="textarea" :rows="2"></el-input></el-form-item>
               <el-form-item label="内容"><el-input v-model="policyForm.content" type="textarea" :rows="6"></el-input></el-form-item>
             </el-form>
@@ -703,7 +817,7 @@
 
         <!-- ========== 交流活动 ========== -->
         <template v-if="currentRoute === '/activity'">
-          <div v-if="!activityDetailId" class="page-card">
+          <div class="page-card">
             <div class="page-header">
               <div class="page-title">交流活动管理</div>
               <el-button type="primary" icon="el-icon-plus" size="small" @click="openActivityForm()">新增活动</el-button>
@@ -734,36 +848,47 @@
               </el-table-column>
               <el-table-column label="操作" width="200" align="center" fixed="right">
                 <template slot-scope="scope">
-                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewActivityDetail(scope.row.id)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewActivityDetail(scope.row)">详情</el-button>
                   <el-button size="mini" type="text" icon="el-icon-edit" @click="openActivityForm(scope.row)">编辑</el-button>
                   <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deleteActivity(scope.row)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
+            <el-empty v-if="!activityLoading && activityList.length === 0" description="暂无数据"></el-empty>
             <div class="pagination-area">
               <el-pagination background layout="total, prev, pager, next, sizes" :total="activityTotal" :page-size.sync="activityFilter.page_size" :current-page.sync="activityFilter.page" @current-change="loadActivity" @size-change="handleActivitySizeChange"></el-pagination>
             </div>
           </div>
 
-          <div v-else class="detail-card">
-            <div class="detail-header">
-              <div class="detail-title">{{ activityDetailData.name || '活动详情' }}</div>
-              <div>
-                <el-button size="small" icon="el-icon-edit" @click="openActivityForm(activityDetailData)">编辑</el-button>
-                <el-button size="small" icon="el-icon-back" @click="activityDetailId = null; loadActivity();">返回列表</el-button>
-              </div>
-            </div>
+          <!-- 活动详情弹窗 -->
+          <el-dialog title="活动详情" :visible.sync="activityDetailVisible" width="700px" :close-on-click-modal="false">
             <div v-loading="activityDetailLoading">
-              <div class="detail-grid">
-                <div class="detail-item" v-for="(val, key) in activityDetailData" :key="key">
-                  <div class="detail-label">{{ getFieldLabel(key) }}</div>
-                  <div class="detail-value" :class="{'content-display': key === 'description' || key === 'content'}">{{ formatFieldValue(key, val) }}</div>
-                </div>
-              </div>
+              <div class="detail-dialog-item"><div class="ddl">活动名称</div><div class="ddv" style="font-size:16px;font-weight:600;">{{ activityDetailData.name || '-' }}</div></div>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">活动类别</div><div class="ddv"><el-tag size="small" type="warning" v-if="activityDetailData.category">{{ activityDetailData.category }}</el-tag><span v-else>-</span></div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">活动状态</div><div class="ddv">
+                  <el-tag size="small" :type="(activityDetailData.status||'') === '已结束' ? 'info' : ((activityDetailData.status||'') === '进行中' ? 'success' : 'warning')">{{ activityDetailData.status || '待开始' }}</el-tag>
+                </div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">开始日期</div><div class="ddv">{{ activityDetailData.start_date || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">结束日期</div><div class="ddv">{{ activityDetailData.end_date || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">活动地点</div><div class="ddv">{{ activityDetailData.location || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">参与人数</div><div class="ddv">{{ activityDetailData.participant_count || '-' }}</div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">主办单位</div><div class="ddv">{{ activityDetailData.organizer || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">协办单位</div><div class="ddv">{{ activityDetailData.co_organizer || '-' }}</div></div></el-col>
+              </el-row>
+              <div class="detail-dialog-item"><div class="ddl">活动描述</div><div class="ddv content-display">{{ activityDetailData.description || '-' }}</div></div>
             </div>
-          </div>
+            <span slot="footer"><el-button size="small" @click="activityDetailVisible = false">关闭</el-button></span>
+          </el-dialog>
 
-          <el-dialog :title="activityForm.id ? '编辑活动' : '新增活动'" :visible.sync="activityFormVisible" width="720px" custom-class="form-dialog" :close-on-click-modal="false">
+          <!-- 活动表单弹窗 -->
+          <el-dialog :title="activityForm.id ? '编辑活动' : '新增活动'" :visible.sync="activityFormVisible" width="600px" custom-class="form-dialog" :close-on-click-modal="false">
             <el-form :model="activityForm" ref="activityForm" label-width="90px" size="small">
               <el-form-item label="活动名称" prop="name" :rules="[{required:true,message:'请输入活动名称'}]"><el-input v-model="activityForm.name"></el-input></el-form-item>
               <el-row :gutter="16">
@@ -785,11 +910,103 @@
                 <el-col :span="12"><el-form-item label="参与人数"><el-input-number v-model="activityForm.participant_count" :min="0" style="width:100%;"></el-input-number></el-form-item></el-col>
               </el-row>
               <el-form-item label="主办方"><el-input v-model="activityForm.organizer"></el-input></el-form-item>
+              <el-form-item label="协办方"><el-input v-model="activityForm.co_organizer"></el-input></el-form-item>
               <el-form-item label="描述"><el-input v-model="activityForm.description" type="textarea" :rows="4"></el-input></el-form-item>
             </el-form>
             <span slot="footer">
               <el-button size="small" @click="activityFormVisible = false">取消</el-button>
               <el-button size="small" type="primary" :loading="activitySubmitting" @click="submitActivity">确定</el-button>
+            </span>
+          </el-dialog>
+        </template>
+
+        <!-- ========== 工作日记 ========== -->
+        <template v-if="currentRoute === '/diary'">
+          <div class="page-card">
+            <div class="page-header">
+              <div class="page-title">工作日记</div>
+              <el-button type="primary" icon="el-icon-plus" size="small" @click="openDiaryForm()">新增日记</el-button>
+            </div>
+            <div class="filter-bar">
+              <el-input v-model="diaryFilter.keyword" placeholder="搜索标题/关键词" size="small" prefix-icon="el-icon-search" clearable style="width:220px;" @clear="loadDiary" @keyup.enter.native="loadDiary"></el-input>
+              <el-select v-model="diaryFilter.work_type" placeholder="工作类型" size="small" clearable @change="loadDiary" style="width:140px;">
+                <el-option v-for="t in diaryTypes" :key="t" :label="t" :value="t"></el-option>
+              </el-select>
+              <el-date-picker v-model="diaryDateRange" type="daterange" size="small" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="yyyy-MM-dd" style="width:280px;" @change="handleDiaryDateChange"></el-date-picker>
+              <el-button size="small" type="primary" icon="el-icon-search" @click="loadDiary">搜索</el-button>
+              <el-button size="small" icon="el-icon-refresh" @click="resetDiaryFilter">重置</el-button>
+            </div>
+            <el-table :data="diaryList" v-loading="diaryLoading" border stripe style="width:100%;" size="small">
+              <el-table-column prop="id" label="ID" width="70" align="center"></el-table-column>
+              <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="work_type" label="工作类型" width="120">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="getDiaryTypeTag(scope.row.work_type)">{{ scope.row.work_type || '-' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="work_date" label="工作日期" width="120"></el-table-column>
+              <el-table-column prop="location" label="地点" width="120" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="creator" label="创建人" width="100"></el-table-column>
+              <el-table-column prop="status" label="状态" width="90" align="center">
+                <template slot-scope="scope">
+                  <el-tag size="mini" :type="getDiaryStatusTag(scope.row.status)">{{ scope.row.status || '草稿' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" align="center" fixed="right">
+                <template slot-scope="scope">
+                  <el-button size="mini" type="text" icon="el-icon-view" @click="viewDiaryDetail(scope.row)">详情</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-edit" @click="openDiaryForm(scope.row)">编辑</el-button>
+                  <el-button size="mini" type="text" icon="el-icon-delete" style="color:#f56c6c;" @click="deleteDiary(scope.row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-if="!diaryLoading && diaryList.length === 0" description="暂无数据"></el-empty>
+            <div class="pagination-area">
+              <el-pagination background layout="total, prev, pager, next, sizes" :total="diaryTotal" :page-size.sync="diaryFilter.page_size" :current-page.sync="diaryFilter.page" @current-change="loadDiary" @size-change="handleDiarySizeChange"></el-pagination>
+            </div>
+          </div>
+
+          <!-- 日记详情弹窗 -->
+          <el-dialog title="日记详情" :visible.sync="diaryDetailVisible" width="700px" :close-on-click-modal="false">
+            <div v-loading="diaryDetailLoading">
+              <div class="detail-dialog-item"><div class="ddl">标题</div><div class="ddv" style="font-size:16px;font-weight:600;">{{ diaryDetailData.title || '-' }}</div></div>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">工作类型</div><div class="ddv"><el-tag size="small" :type="getDiaryTypeTag(diaryDetailData.work_type)">{{ diaryDetailData.work_type || '-' }}</el-tag></div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">状态</div><div class="ddv"><el-tag size="small" :type="getDiaryStatusTag(diaryDetailData.status)">{{ diaryDetailData.status || '草稿' }}</el-tag></div></div></el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">工作日期</div><div class="ddv">{{ diaryDetailData.work_date || '-' }}</div></div></el-col>
+                <el-col :span="12"><div class="detail-dialog-item"><div class="ddl">地点</div><div class="ddv">{{ diaryDetailData.location || '-' }}</div></div></el-col>
+              </el-row>
+              <div class="detail-dialog-item"><div class="ddl">参与人员</div><div class="ddv">{{ diaryDetailData.participants || '-' }}</div></div>
+              <div class="detail-dialog-item"><div class="ddl">创建人</div><div class="ddv">{{ diaryDetailData.creator || '-' }}</div></div>
+              <div class="detail-dialog-item"><div class="ddl">日记内容</div><div class="ddv content-display" style="min-height:120px;background:#f8f9fb;padding:12px;border-radius:6px;">{{ diaryDetailData.content || '-' }}</div></div>
+            </div>
+            <span slot="footer"><el-button size="small" @click="diaryDetailVisible = false">关闭</el-button></span>
+          </el-dialog>
+
+          <!-- 日记表单弹窗 -->
+          <el-dialog :title="diaryForm.id ? '编辑日记' : '新增日记'" :visible.sync="diaryFormVisible" width="600px" custom-class="form-dialog" :close-on-click-modal="false">
+            <el-form :model="diaryForm" ref="diaryForm" label-width="90px" size="small">
+              <el-form-item label="标题" prop="title" :rules="[{required:true,message:'请输入标题'}]"><el-input v-model="diaryForm.title" placeholder="请输入日记标题"></el-input></el-form-item>
+              <el-row :gutter="16">
+                <el-col :span="12"><el-form-item label="工作类型" prop="work_type" :rules="[{required:true,message:'请选择类型'}]"><el-select v-model="diaryForm.work_type" placeholder="请选择" style="width:100%;">
+                  <el-option v-for="t in diaryTypes" :key="t" :label="t" :value="t"></el-option>
+                </el-select></el-form-item></el-col>
+                <el-col :span="12"><el-form-item label="工作日期"><el-date-picker v-model="diaryForm.work_date" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%;"></el-date-picker></el-form-item></el-col>
+              </el-row>
+              <el-form-item label="地点"><el-input v-model="diaryForm.location" placeholder="请输入地点"></el-input></el-form-item>
+              <el-form-item label="参与人员"><el-input v-model="diaryForm.participants" placeholder="多人用逗号分隔"></el-input></el-form-item>
+              <el-form-item label="状态"><el-select v-model="diaryForm.status" placeholder="请选择" style="width:100%;">
+                <el-option label="草稿" value="草稿"></el-option>
+                <el-option label="已发布" value="已发布"></el-option>
+                <el-option label="已归档" value="已归档"></el-option>
+              </el-select></el-form-item>
+              <el-form-item label="内容" prop="content" :rules="[{required:true,message:'请输入内容'}]"><el-input v-model="diaryForm.content" type="textarea" :rows="8" placeholder="请输入日记内容"></el-input></el-form-item>
+            </el-form>
+            <span slot="footer">
+              <el-button size="small" @click="diaryFormVisible = false">取消</el-button>
+              <el-button size="small" type="primary" :loading="diarySubmitting" @click="submitDiary">确定</el-button>
             </span>
           </el-dialog>
         </template>
@@ -824,12 +1041,13 @@
                 </template>
               </el-table-column>
             </el-table>
+            <el-empty v-if="!userLoading && userList.length === 0" description="暂无数据"></el-empty>
             <div class="pagination-area">
               <el-pagination background layout="total, prev, pager, next, sizes" :total="userTotal" :page-size.sync="userFilter.page_size" :current-page.sync="userFilter.page" @current-change="loadUser" @size-change="handleUserSizeChange"></el-pagination>
             </div>
           </div>
 
-          <el-dialog :title="userForm.id ? '编辑用户' : '新增用户'" :visible.sync="userFormVisible" width="500px" custom-class="form-dialog" :close-on-click-modal="false">
+          <el-dialog :title="userForm.id ? '编辑用户' : '新增用户'" :visible.sync="userFormVisible" width="600px" custom-class="form-dialog" :close-on-click-modal="false">
             <el-form :model="userForm" ref="userForm" label-width="80px" size="small">
               <el-form-item label="用户名" prop="username" :rules="[{required:true,message:'请输入用户名'}]">
                 <el-input v-model="userForm.username" :disabled="!!userForm.id"></el-input>
@@ -839,6 +1057,7 @@
               </el-form-item>
               <el-form-item label="真实姓名"><el-input v-model="userForm.real_name"></el-input></el-form-item>
               <el-form-item label="联系电话"><el-input v-model="userForm.phone"></el-input></el-form-item>
+              <el-form-item label="邮箱"><el-input v-model="userForm.email"></el-input></el-form-item>
               <el-form-item label="角色">
                 <el-select v-model="userForm.role" placeholder="请选择" style="width:100%;">
                   <el-option label="管理员" value="admin"></el-option>
@@ -866,7 +1085,8 @@
             <el-form :model="profileForm" ref="profileForm" label-width="90px" size="small" style="max-width:450px;">
               <el-form-item label="用户名"><el-input v-model="profileForm.username" disabled></el-input></el-form-item>
               <el-form-item label="真实姓名"><el-input v-model="profileForm.real_name"></el-input></el-form-item>
-              <el-form-item label="联系电话"><el-input v-model="profileForm.phone"></el-input></el-form-item>
+              <el-form-item label="手机号"><el-input v-model="profileForm.phone"></el-input></el-form-item>
+              <el-form-item label="邮箱"><el-input v-model="profileForm.email"></el-input></el-form-item>
               <el-divider content-position="left">修改密码</el-divider>
               <el-form-item label="当前密码"><el-input v-model="profileForm.old_password" type="password" show-password placeholder="不修改密码可留空"></el-input></el-form-item>
               <el-form-item label="新密码"><el-input v-model="profileForm.new_password" type="password" show-password placeholder="请输入新密码"></el-input></el-form-item>
@@ -895,14 +1115,11 @@
   // 配置
   // ============================
   var API_BASE = '';
-  // 自动检测 API 基础路径
   (function detectApiBase() {
     var href = window.location.href;
-    // 如果在 Render 上，直接使用当前域名
     if (href.indexOf('onrender.com') > -1 || href.indexOf('render.com') > -1) {
       API_BASE = window.location.origin;
     } else {
-      // 本地开发：尝试连接常见的后端地址
       API_BASE = window.location.origin;
     }
   })();
@@ -940,7 +1157,6 @@
     if (token) {
       config.headers['Authorization'] = 'Bearer ' + token;
     }
-    // 拼接完整 URL
     if (config.url && config.url.indexOf(API_PREFIX) === 0) {
       config.url = API_BASE + config.url;
     } else if (config.url && config.url.charAt(0) === '/') {
@@ -981,13 +1197,15 @@
     organization: '所属机构', phone: '联系电话', email: '邮箱', birthday: '出生日期',
     remark: '备注', created_at: '创建时间', updated_at: '更新时间',
     gender: '性别', address: '地址', nationality: '国籍', occupation: '职业',
-    // 政策
-    policy_id: '政策ID', policy_name: '政策名称',
-    // 活动
+    id_number: '证件号码', specialty: '专业领域', achievements: '主要成就',
+    policy_id: '政策ID', policy_name: '政策名称', policy_number: '政策编号',
+    publish_org: '发布机关', effective_date: '生效日期',
     start_date: '开始日期', end_date: '结束日期', location: '地点',
-    organizer: '主办方', participant_count: '参与人数',
+    organizer: '主办方', co_organizer: '协办方', participant_count: '参与人数',
     publish_date: '发布日期', status: '状态', summary: '摘要', content: '内容',
-    description: '描述'
+    description: '描述', work_type: '工作类型', work_date: '工作日期',
+    participants: '参与人员', creator: '创建人',
+    username: '用户名', real_name: '真实姓名', role: '角色'
   };
 
   // ============================
@@ -1011,27 +1229,36 @@
 
         // 仪表盘
         dashboardOverview: {},
+        recentDiaryList: [],
 
         // 人员
         personnelList: [], personnelTotal: 0, personnelLoading: false,
         personnelFilter: { page: 1, page_size: 10, keyword: '', category: '' },
         personnelFormVisible: false, personnelForm: {}, personnelSubmitting: false,
-        personnelDetailId: null, personnelDetailData: {}, personnelDetailLoading: false,
+        personnelDetailVisible: false, personnelDetailData: {}, personnelDetailLoading: false,
         personnelCategories: ['港澳台同胞', '海外侨胞', '归国华侨', '侨眷', '社团领袖', '专家学者', '企业家', '青年代表'],
 
         // 政策
         policyList: [], policyTotal: 0, policyLoading: false,
         policyFilter: { page: 1, page_size: 10, keyword: '', category: '' },
         policyFormVisible: false, policyForm: {}, policySubmitting: false,
-        policyDetailId: null, policyDetailData: {}, policyDetailLoading: false,
+        policyDetailVisible: false, policyDetailData: {}, policyDetailLoading: false,
         policyCategories: ['法律法规', '行政规章', '政策解读', '优惠政策', '签证政策', '居留政策', '教育政策', '就业政策'],
 
         // 活动
         activityList: [], activityTotal: 0, activityLoading: false,
         activityFilter: { page: 1, page_size: 10, keyword: '', category: '' },
         activityFormVisible: false, activityForm: {}, activitySubmitting: false,
-        activityDetailId: null, activityDetailData: {}, activityDetailLoading: false,
+        activityDetailVisible: false, activityDetailData: {}, activityDetailLoading: false,
         activityCategories: ['文化交流', '商务考察', '学术论坛', '联谊活动', '培训研讨', '参观访问', '公益活动', '节庆活动'],
+
+        // 日记
+        diaryList: [], diaryTotal: 0, diaryLoading: false,
+        diaryFilter: { page: 1, page_size: 10, keyword: '', work_type: '', start_date: '', end_date: '' },
+        diaryDateRange: null,
+        diaryFormVisible: false, diaryForm: {}, diarySubmitting: false,
+        diaryDetailVisible: false, diaryDetailData: {}, diaryDetailLoading: false,
+        diaryTypes: ['日常工作', '会议记录', '调研报告', '外出走访', '学习培训', '其他'],
 
         // 用户
         userList: [], userTotal: 0, userLoading: false,
@@ -1039,7 +1266,7 @@
         userFormVisible: false, userForm: {}, userSubmitting: false,
 
         // 个人设置
-        profileForm: { username: '', real_name: '', phone: '', old_password: '', new_password: '', confirm_password: '' },
+        profileForm: { username: '', real_name: '', phone: '', email: '', old_password: '', new_password: '', confirm_password: '' },
         profileSaving: false,
 
         // 图表实例
@@ -1054,7 +1281,7 @@
       currentPageName: function() {
         var map = {
           '/dashboard': '仪表盘', '/personnel': '人员管理', '/policy': '政策法规',
-          '/activity': '交流活动', '/user': '用户管理', '/profile': '个人设置'
+          '/activity': '交流活动', '/diary': '工作日记', '/user': '用户管理', '/profile': '个人设置'
         };
         return map[this.currentRoute] || '';
       }
@@ -1070,6 +1297,8 @@
           this.loadPolicy();
         } else if (val === '/activity') {
           this.loadActivity();
+        } else if (val === '/diary') {
+          this.loadDiary();
         } else if (val === '/user') {
           this.loadUser();
         } else if (val === '/profile') {
@@ -1123,7 +1352,6 @@
           return;
         }
         this.isLoginPage = false;
-        // 用户管理权限检查
         if (hash === '/user' && !this.isAdmin) {
           hash = '/dashboard';
         }
@@ -1194,7 +1422,15 @@
           self.dashboardOverview = { personnel_count: 0, policy_count: 0, activity_count: 0, user_count: 0 };
         });
 
-        // 加载图表数据
+        // 加载最近日记
+        api.get(API_PREFIX + '/diary/list', { params: { page: 1, page_size: 5 } }).then(function(res) {
+          if (res.code === 20000) {
+            self.recentDiaryList = (res.data && res.data.list) || res.data || [];
+          }
+        }).catch(function() {
+          self.recentDiaryList = [];
+        });
+
         this.$nextTick(function() {
           self.loadDashboardCharts();
         });
@@ -1239,6 +1475,19 @@
           { name: '归国华侨', value: 89 }, { name: '社团领袖', value: 45 },
           { name: '专家学者', value: 67 }, { name: '企业家', value: 98 }
         ]);
+
+        // 日记类型分布
+        api.get(API_PREFIX + '/dashboard/diary-stats').then(function(res) {
+          if (res.code === 20000 && res.data) {
+            self.renderDiaryChart(res.data);
+          }
+        }).catch(function() {
+          self.renderDiaryChart([
+            { name: '日常工作', value: 35 }, { name: '会议记录', value: 22 },
+            { name: '调研报告', value: 15 }, { name: '外出走访', value: 28 },
+            { name: '学习培训', value: 12 }, { name: '其他', value: 8 }
+          ]);
+        });
       },
 
       renderRegionChart: function(data) {
@@ -1336,6 +1585,29 @@
         window.addEventListener('resize', function() { chart.resize(); });
       },
 
+      renderDiaryChart: function(data) {
+        if (!this.$refs.diaryChart) return;
+        if (this._charts.diary) this._charts.diary.dispose();
+        var chart = echarts.init(this.$refs.diaryChart);
+        this._charts.diary = chart;
+        chart.setOption({
+          tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+          legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
+          color: ['#409EFF', '#67C23A', '#E6A23C', '#9B59B6', '#F56C6C', '#909399'],
+          series: [{
+            type: 'pie',
+            radius: ['35%', '65%'],
+            center: ['35%', '50%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+            label: { show: false },
+            emphasis: { label: { show: true, fontSize: 14 } },
+            data: data
+          }]
+        });
+        window.addEventListener('resize', function() { chart.resize(); });
+      },
+
       // ---------- 人员管理 ----------
       loadPersonnel: function() {
         var self = this;
@@ -1347,7 +1619,7 @@
               self.personnelTotal = (res.data && res.data.total) || 0;
             }
           })
-          .catch(function(err) {
+          .catch(function() {
             self.personnelList = [];
             self.personnelTotal = 0;
           })
@@ -1416,19 +1688,19 @@
           .catch(function() {});
       },
 
-      viewPersonnelDetail: function(id) {
+      viewPersonnelDetail: function(row) {
         var self = this;
-        this.personnelDetailId = id;
+        this.personnelDetailVisible = true;
         this.personnelDetailLoading = true;
-        api.get(API_PREFIX + '/personnel/detail', { params: { id: id } })
+        this.personnelDetailData = {};
+        api.get(API_PREFIX + '/personnel/detail', { params: { id: row.id } })
           .then(function(res) {
             if (res.code === 20000) {
-              self.personnelDetailData = res.data || {};
+              self.personnelDetailData = res.data || row;
             }
           })
-          .catch(function(err) {
-            self.$message.error(err.message || '获取详情失败');
-            self.personnelDetailId = null;
+          .catch(function() {
+            self.personnelDetailData = row;
           })
           .finally(function() { self.personnelDetailLoading = false; });
       },
@@ -1510,17 +1782,17 @@
           .catch(function() {});
       },
 
-      viewPolicyDetail: function(id) {
+      viewPolicyDetail: function(row) {
         var self = this;
-        this.policyDetailId = id;
+        this.policyDetailVisible = true;
         this.policyDetailLoading = true;
-        api.get(API_PREFIX + '/policy/detail', { params: { id: id } })
+        this.policyDetailData = {};
+        api.get(API_PREFIX + '/policy/detail', { params: { id: row.id } })
           .then(function(res) {
-            if (res.code === 20000) { self.policyDetailData = res.data || {}; }
+            if (res.code === 20000) { self.policyDetailData = res.data || row; }
           })
-          .catch(function(err) {
-            self.$message.error(err.message || '获取详情失败');
-            self.policyDetailId = null;
+          .catch(function() {
+            self.policyDetailData = row;
           })
           .finally(function() { self.policyDetailLoading = false; });
       },
@@ -1602,19 +1874,134 @@
           .catch(function() {});
       },
 
-      viewActivityDetail: function(id) {
+      viewActivityDetail: function(row) {
         var self = this;
-        this.activityDetailId = id;
+        this.activityDetailVisible = true;
         this.activityDetailLoading = true;
-        api.get(API_PREFIX + '/activity/detail', { params: { id: id } })
+        this.activityDetailData = {};
+        api.get(API_PREFIX + '/activity/detail', { params: { id: row.id } })
           .then(function(res) {
-            if (res.code === 20000) { self.activityDetailData = res.data || {}; }
+            if (res.code === 20000) { self.activityDetailData = res.data || row; }
           })
-          .catch(function(err) {
-            self.$message.error(err.message || '获取详情失败');
-            self.activityDetailId = null;
+          .catch(function() {
+            self.activityDetailData = row;
           })
           .finally(function() { self.activityDetailLoading = false; });
+      },
+
+      // ---------- 工作日记 ----------
+      loadDiary: function() {
+        var self = this;
+        this.diaryLoading = true;
+        api.get(API_PREFIX + '/diary/list', { params: self.diaryFilter })
+          .then(function(res) {
+            if (res.code === 20000) {
+              self.diaryList = (res.data && res.data.list) || res.data || [];
+              self.diaryTotal = (res.data && res.data.total) || 0;
+            }
+          })
+          .catch(function() { self.diaryList = []; self.diaryTotal = 0; })
+          .finally(function() { self.diaryLoading = false; });
+      },
+
+      resetDiaryFilter: function() {
+        this.diaryFilter = { page: 1, page_size: 10, keyword: '', work_type: '', start_date: '', end_date: '' };
+        this.diaryDateRange = null;
+        this.loadDiary();
+      },
+
+      handleDiaryDateChange: function(val) {
+        if (val) {
+          this.diaryFilter.start_date = val[0];
+          this.diaryFilter.end_date = val[1];
+        } else {
+          this.diaryFilter.start_date = '';
+          this.diaryFilter.end_date = '';
+        }
+        this.loadDiary();
+      },
+
+      handleDiarySizeChange: function() {
+        this.diaryFilter.page = 1;
+        this.loadDiary();
+      },
+
+      openDiaryForm: function(row) {
+        if (row) {
+          this.diaryForm = JSON.parse(JSON.stringify(row));
+        } else {
+          this.diaryForm = { title: '', work_type: '', work_date: '', location: '', participants: '', status: '草稿', content: '' };
+        }
+        this.diaryFormVisible = true;
+        this.$nextTick(function() {
+          if (this.$refs.diaryForm) this.$refs.diaryForm.clearValidate();
+        });
+      },
+
+      submitDiary: function() {
+        var self = this;
+        this.$refs.diaryForm.validate(function(valid) {
+          if (!valid) return;
+          self.diarySubmitting = true;
+          var isEdit = !!self.diaryForm.id;
+          var url = isEdit ? API_PREFIX + '/diary/update' : API_PREFIX + '/diary/create';
+          api.post(url, self.diaryForm)
+            .then(function(res) {
+              if (res.code === 20000) {
+                self.$message.success(isEdit ? '编辑成功' : '新增成功');
+                self.diaryFormVisible = false;
+                self.loadDiary();
+              } else {
+                self.$message.error(res.message || '操作失败');
+              }
+            })
+            .catch(function(err) { self.$message.error(err.message || '操作失败'); })
+            .finally(function() { self.diarySubmitting = false; });
+        });
+      },
+
+      deleteDiary: function(row) {
+        var self = this;
+        this.$confirm('确定要删除日记 "' + (row.title || '') + '" 吗？此操作不可撤销。', '删除确认', { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' })
+          .then(function() {
+            api.post(API_PREFIX + '/diary/delete', { id: row.id })
+              .then(function(res) {
+                if (res.code === 20000) {
+                  self.$message.success('删除成功');
+                  self.loadDiary();
+                } else {
+                  self.$message.error(res.message || '删除失败');
+                }
+              })
+              .catch(function(err) { self.$message.error(err.message || '删除失败'); });
+          })
+          .catch(function() {});
+      },
+
+      viewDiaryDetail: function(row) {
+        var self = this;
+        this.diaryDetailVisible = true;
+        this.diaryDetailLoading = true;
+        this.diaryDetailData = {};
+        api.get(API_PREFIX + '/diary/detail', { params: { id: row.id } })
+          .then(function(res) {
+            if (res.code === 20000) { self.diaryDetailData = res.data || row; }
+          })
+          .catch(function() {
+            self.diaryDetailData = row;
+          })
+          .finally(function() { self.diaryDetailLoading = false; });
+      },
+
+      getDiaryTypeTag: function(type) {
+        var map = { '日常工作': '', '会议记录': 'success', '调研报告': 'warning', '外出走访': 'danger', '学习培训': 'info', '其他': 'info' };
+        var colorMap = { '日常工作': '', '会议记录': 'success', '调研报告': 'warning', '外出走访': 'danger', '学习培训': 'info', '其他': 'info' };
+        return colorMap[type] || 'info';
+      },
+
+      getDiaryStatusTag: function(status) {
+        var map = { '已发布': 'success', '草稿': 'info', '已归档': 'warning' };
+        return map[status] || 'info';
       },
 
       // ---------- 用户管理 ----------
@@ -1647,7 +2034,7 @@
           this.userForm = JSON.parse(JSON.stringify(row));
           this.userForm.password = '';
         } else {
-          this.userForm = { username: '', password: '', real_name: '', phone: '', role: 'user' };
+          this.userForm = { username: '', password: '', real_name: '', phone: '', email: '', role: 'user' };
         }
         this.userFormVisible = true;
         this.$nextTick(function() {
@@ -1663,7 +2050,6 @@
           var isEdit = !!self.userForm.id;
           var url = isEdit ? API_PREFIX + '/user/update' : API_PREFIX + '/user/create';
           var payload = Object.assign({}, self.userForm);
-          // 编辑时如果密码为空则不传
           if (isEdit && !payload.password) {
             delete payload.password;
           }
@@ -1707,9 +2093,10 @@
       // ---------- 个人设置 ----------
       initProfile: function() {
         this.profileForm = {
-          username: this.userInfo.name || '',
-          real_name: this.userInfo.name || '',
+          username: this.userInfo.name || this.userInfo.username || '',
+          real_name: this.userInfo.name || this.userInfo.real_name || '',
           phone: this.userInfo.phone || '',
+          email: this.userInfo.email || '',
           old_password: '',
           new_password: '',
           confirm_password: ''
@@ -1726,7 +2113,8 @@
         var payload = {
           id: this.userInfo.id || '',
           real_name: this.profileForm.real_name,
-          phone: this.profileForm.phone
+          phone: this.profileForm.phone,
+          email: this.profileForm.email
         };
         if (this.profileForm.old_password && this.profileForm.new_password) {
           payload.old_password = this.profileForm.old_password;
@@ -1739,6 +2127,10 @@
               self.profileForm.old_password = '';
               self.profileForm.new_password = '';
               self.profileForm.confirm_password = '';
+              // 更新顶部用户名
+              if (self.profileForm.real_name) {
+                self.userInfo.name = self.profileForm.real_name;
+              }
             } else {
               self.$message.error(res.message || '保存失败');
             }
@@ -1755,7 +2147,6 @@
 
       getFieldLabel: function(key) {
         if (fieldLabels[key]) return fieldLabels[key];
-        // 尝试将下划线字段名转为中文
         return key.replace(/_/g, ' ');
       },
 
