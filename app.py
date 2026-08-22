@@ -1185,6 +1185,278 @@ def get_db_tables(payload):
         conn.close()
 
 
+# ============ AI Chat 模块 ============
+
+import requests as http_requests
+import json as json_lib
+
+DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions'
+DEEPSEEK_MODELS = {
+    'deepseek-chat': 'DeepSeek-V3（通用对话）',
+    'deepseek-reasoner': 'DeepSeek-R1（深度推理）'
+}
+
+# 存储对话历史（内存中，简化方案）
+chat_conversations = {}
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+@app.route('/vue-admin-template/chat/models', methods=['GET'])
+@token_required
+def get_chat_models(payload):
+    """获取可用的 AI 模型列表"""
+    models = [{'id': k, 'name': v} for k, v in DEEPSEEK_MODELS.items()]
+    return jsonify({'code': 20000, 'data': models})
+
+
+@app.route('/vue-admin-template/chat/upload', methods=['POST'])
+@token_required
+def chat_upload(payload):
+    """上传文件用于 AI 分析"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'code': 50000, 'message': '未选择文件'})
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'code': 50000, 'message': '文件名为空'})
+        
+        # 保存文件
+        filename = f"{payload['user_id']}_{int(datetime.now().timestamp())}_{file.filename}"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        
+        # 读取文件内容（支持 txt、csv、json）
+        content = ''
+        ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+        
+        if ext in ['txt', 'csv', 'md', 'log']:
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()[:10000]  # 最多读取前10000字符
+        elif ext == 'json':
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json_lib.load(f)
+                content = json_lib.dumps(data, ensure_ascii=False, indent=2)[:10000]
+        elif ext in ['xlsx', 'xls']:
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(filepath, read_only=True)
+                ws = wb.active
+                rows = []
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if i > 100:
+                        break
+                    rows.append([str(cell) if cell is not None else '' for cell in row])
+                content = '\n'.join(['\t'.join(row) for row in rows])
+            except Exception:
+                content = f'[文件 {file.filename} 已上传，但不支持自动解析]'
+        elif ext == 'pdf':
+            content = f'[PDF文件 {file.filename} 已上传，共 {os.path.getsize(filepath)} 字节]'
+        else:
+            content = f'[文件 {file.filename} 已上传]'
+        
+        return jsonify({
+            'code': 20000,
+            'data': {
+                'filename': file.filename,
+                'filepath': filepath,
+                'content': content,
+                'size': os.path.getsize(filepath)
+            }
+        })
+    except Exception as e:
+        logger.error(f'文件上传失败: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'上传失败: {str(e)}'})
+
+
+def _parse_mentions(message):
+    """解析消息中的 @ 提及，返回匹配的数据模块列表"""
+    mention_map = {
+        '@人员管理': 'personnel',
+        '@人员': 'personnel',
+        '@政策法规': 'policy',
+        '@政策': 'policy',
+        '@交流活动': 'activity',
+        '@活动': 'activity',
+        '@工作日记': 'diary',
+        '@日记': 'diary',
+    }
+    matched = set()
+    for keyword, module in mention_map.items():
+        if keyword in message:
+            matched.add(module)
+    return list(matched)
+
+
+def _get_module_context(modules):
+    """根据引用的模块，查询数据库并生成上下文文本"""
+    contexts = []
+    conn = Config.get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        if 'personnel' in modules:
+            cursor.execute('SELECT name, gender, region, category, occupation, organization, phone FROM personnel LIMIT 100')
+            rows = [dict(r) for r in cursor.fetchall()]
+            if rows:
+                import csv, io
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+                contexts.append(f'【人员管理数据】共{len(rows)}条记录：\n{output.getvalue()[:8000]}')
+        
+        if 'policy' in modules:
+            cursor.execute('SELECT title, issuer, publish_date, category, status FROM policy LIMIT 100')
+            rows = [dict(r) for r in cursor.fetchall()]
+            if rows:
+                import csv, io
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+                contexts.append(f'【政策法规数据】共{len(rows)}条记录：\n{output.getvalue()[:8000]}')
+        
+        if 'activity' in modules:
+            cursor.execute('SELECT name, activity_type, start_time, end_time, location, status FROM activity LIMIT 100')
+            rows = [dict(r) for r in cursor.fetchall()]
+            if rows:
+                import csv, io
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+                contexts.append(f'【交流活动数据】共{len(rows)}条记录：\n{output.getvalue()[:8000]}')
+        
+        if 'diary' in modules:
+            cursor.execute('SELECT title, work_type, work_date, location, status FROM diaries LIMIT 100')
+            rows = [dict(r) for r in cursor.fetchall()]
+            if rows:
+                import csv, io
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+                contexts.append(f'【工作日记数据】共{len(rows)}条记录：\n{output.getvalue()[:8000]}')
+    finally:
+        conn.close()
+    
+    return contexts
+
+
+@app.route('/vue-admin-template/chat/send', methods=['POST'])
+@token_required
+def chat_send(payload):
+    """发送消息给 AI"""
+    try:
+        api_key = os.environ.get('DEEPSEEK_API_KEY', '')
+        if not api_key:
+            return jsonify({'code': 50000, 'message': 'AI 服务未配置，请联系管理员设置 DEEPSEEK_API_KEY'})
+        
+        data = request.get_json()
+        model = data.get('model', 'deepseek-chat')
+        message = data.get('message', '').strip()
+        conversation_id = data.get('conversation_id', 'default')
+        files = data.get('files', [])  # [{filename, content}]
+        
+        if not message:
+            return jsonify({'code': 50000, 'message': '消息不能为空'})
+        
+        # 构建系统提示
+        system_prompt = '你是港澳台侨管库系统的 AI 助手，专门负责港澳台侨事务管理工作。你可以回答政策问题、分析数据、撰写报告、提供建议。请用中文回答，语气专业但友好。'
+        
+        # 如果是对话模式，获取历史消息
+        if conversation_id not in chat_conversations:
+            chat_conversations[conversation_id] = []
+        
+        messages = [{'role': 'system', 'content': system_prompt}]
+        
+        # 解析 @ 提及并注入数据上下文
+        mentions = _parse_mentions(message)
+        if mentions:
+            contexts = _get_module_context(mentions)
+            for ctx in contexts:
+                messages.append({'role': 'system', 'content': ctx})
+        
+        # 添加文件内容
+        for f in files:
+            if f.get('content'):
+                messages.append({
+                    'role': 'system',
+                    'content': f'用户上传了文件 [{f["filename"]}]，内容如下：\n\n{f["content"][:5000]}'
+                })
+        
+        # 添加历史消息（最近20条）
+        history = chat_conversations[conversation_id][-20:]
+        messages.extend(history)
+        
+        # 添加当前用户消息
+        messages.append({'role': 'user', 'content': message})
+        
+        # 调用 DeepSeek API
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        }
+        
+        api_payload = {
+            'model': model,
+            'messages': messages,
+            'temperature': 0.7,
+            'max_tokens': 4096,
+            'stream': False
+        }
+        
+        response = http_requests.post(
+            DEEPSEEK_API_URL,
+            headers=headers,
+            json=api_payload,
+            timeout=120
+        )
+        
+        if response.status_code != 200:
+            error_msg = response.json().get('error', {}).get('message', f'API 错误 {response.status_code}')
+            return jsonify({'code': 50000, 'message': f'AI 服务异常: {error_msg}'})
+        
+        result = response.json()
+        ai_message = result['choices'][0]['message']['content']
+        
+        # 保存对话历史
+        chat_conversations[conversation_id].append({'role': 'user', 'content': message})
+        chat_conversations[conversation_id].append({'role': 'assistant', 'content': ai_message})
+        
+        # 限制历史长度
+        if len(chat_conversations[conversation_id]) > 40:
+            chat_conversations[conversation_id] = chat_conversations[conversation_id][-40:]
+        
+        return jsonify({
+            'code': 20000,
+            'data': {
+                'reply': ai_message,
+                'model': model,
+                'conversation_id': conversation_id
+            }
+        })
+    except http_requests.exceptions.Timeout:
+        return jsonify({'code': 50000, 'message': 'AI 响应超时，请稍后重试'})
+    except Exception as e:
+        logger.error(f'AI 对话异常: {str(e)}')
+        return jsonify({'code': 50000, 'message': f'对话失败: {str(e)}'})
+
+
+@app.route('/vue-admin-template/chat/clear', methods=['POST'])
+@token_required
+def chat_clear(payload):
+    """清空对话历史"""
+    data = request.get_json() or {}
+    conversation_id = data.get('conversation_id', 'default')
+    if conversation_id in chat_conversations:
+        del chat_conversations[conversation_id]
+    return jsonify({'code': 20000, 'data': 'success'})
+
+
 # ============ 生产模式：托管前端静态文件 ============
 import os
 from flask import send_from_directory
