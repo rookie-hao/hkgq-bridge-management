@@ -565,7 +565,7 @@
               <div class="card-icon purple"><i class="el-icon-s-custom"></i></div>
               <div class="card-info">
                 <div class="card-title">系统用户</div>
-                <div class="card-value">{{ dashboardOverview.user_count || 0 }}</div>
+                <div class="card-value">{{ dashboardOverview.users_count || 0 }}</div>
               </div>
             </div>
           </div>
@@ -1479,7 +1479,7 @@
         // 日记类型分布
         api.get(API_PREFIX + '/dashboard/diary-stats').then(function(res) {
           if (res.code === 20000 && res.data) {
-            self.renderDiaryChart(res.data);
+            self.renderDiaryChart(res.data.chart_data || res.data);
           }
         }).catch(function() {
           self.renderDiaryChart([

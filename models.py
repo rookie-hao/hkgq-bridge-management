@@ -256,8 +256,8 @@ class User:
             query = 'SELECT id, username, role, name, avatar, created_at FROM users WHERE 1=1'
             params = []
             if username:
-                query += ' AND username LIKE ?'
-                params.append(f'%{username}%')
+                query += ' AND (username LIKE ? OR name LIKE ?)'
+                params.extend([f'%{username}%', f'%{username}%'])
             if role:
                 query += ' AND role = ?'
                 params.append(role)
@@ -267,7 +267,7 @@ class User:
             total = len(all_users)
             start = (page - 1) * limit
             users_page = all_users[start:start + limit]
-            return {'total': total, 'items': users_page}
+            return {'total': total, 'list': users_page}
         finally:
             connection.close()
 
@@ -319,19 +319,22 @@ class Personnel:
     """港澳台侨人员信息模型"""
 
     @staticmethod
-    def get_all(page=1, limit=10, keyword='', region=''):
+    def get_all(page=1, limit=10, keyword='', region='', category=''):
         connection = get_db_connection()
         try:
             cursor = connection.cursor()
             where = 'WHERE 1=1'
             params = []
             if keyword:
-                where += ' AND (name LIKE ? OR phone LIKE ? OR organization LIKE ? OR address LIKE ?)'
+                where += ' AND (name LIKE ? OR phone LIKE ? OR organization LIKE ? OR address LIKE ? OR remark LIKE ?)'
                 like_kw = f'%{keyword}%'
-                params.extend([like_kw, like_kw, like_kw, like_kw])
+                params.extend([like_kw, like_kw, like_kw, like_kw, like_kw])
             if region:
                 where += ' AND region = ?'
                 params.append(region)
+            if category:
+                where += ' AND category = ?'
+                params.append(category)
             cursor.execute(f'SELECT COUNT(*) as total FROM personnel {where}', params)
             total = cursor.fetchone()['total']
             offset = (page - 1) * limit
@@ -341,7 +344,7 @@ class Personnel:
                 LIMIT ? OFFSET ?
             ''', params + [limit, offset])
             items = _rows_to_list(cursor.fetchall())
-            return {'total': total, 'items': items}
+            return {'total': total, 'list': items}
         finally:
             connection.close()
 
@@ -439,7 +442,7 @@ class Policy:
                 LIMIT ? OFFSET ?
             ''', params + [limit, offset])
             items = _rows_to_list(cursor.fetchall())
-            return {'total': total, 'items': items}
+            return {'total': total, 'list': items}
         finally:
             connection.close()
 
@@ -537,7 +540,7 @@ class Activity:
                 LIMIT ? OFFSET ?
             ''', params + [limit, offset])
             items = _rows_to_list(cursor.fetchall())
-            return {'total': total, 'items': items}
+            return {'total': total, 'list': items}
         finally:
             connection.close()
 
@@ -680,7 +683,7 @@ class Diary:
                 LIMIT ? OFFSET ?
             ''', params + [page_size, offset])
             items = _rows_to_list(cursor.fetchall())
-            return {'total': total, 'items': items}
+            return {'total': total, 'list': items}
         finally:
             connection.close()
 

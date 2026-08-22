@@ -183,10 +183,10 @@ def register():
 def get_user_list(payload):
     """获取用户列表"""
     page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 10))
-    username = request.args.get('username', '')
+    limit = int(request.args.get('page_size', request.args.get('limit', 10)))
+    keyword = request.args.get('keyword', request.args.get('username', ''))
     role = request.args.get('role', '')
-    result = User.get_all(page, limit, username, role)
+    result = User.get_all(page, limit, keyword, role)
     return jsonify({'code': 20000, 'data': result})
 
 
@@ -339,11 +339,12 @@ def get_personnel_list(payload):
     """获取人员列表（支持搜索、地区筛选、分页）"""
     try:
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        limit = int(request.args.get('page_size', request.args.get('limit', 10)))
         keyword = request.args.get('keyword', '')
+        category = request.args.get('category', '')
         region = request.args.get('region', '')
 
-        result = Personnel.get_all(page, limit, keyword, region)
+        result = Personnel.get_all(page, limit, keyword, region, category)
         return jsonify({'code': 20000, 'data': result})
     except Exception as e:
         logger.error(f'❌ 获取人员列表失败: {str(e)}')
@@ -458,7 +459,7 @@ def get_policy_list(payload):
     """获取政策文件列表（支持搜索、分类筛选、状态筛选、分页）"""
     try:
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        limit = int(request.args.get('page_size', request.args.get('limit', 10)))
         keyword = request.args.get('keyword', '')
         category = request.args.get('category', '')
         status = request.args.get('status', '')
@@ -574,9 +575,9 @@ def get_activity_list(payload):
     """获取活动列表（支持搜索、类型筛选、状态筛选、分页）"""
     try:
         page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 10))
+        limit = int(request.args.get('page_size', request.args.get('limit', 10)))
         keyword = request.args.get('keyword', '')
-        activity_type = request.args.get('activity_type', '')
+        activity_type = request.args.get('category', request.args.get('activity_type', ''))
         status = request.args.get('status', '')
 
         result = Activity.get_all(page, limit, keyword, activity_type, status)
@@ -691,7 +692,7 @@ def get_diary_list(payload):
     """获取工作日记列表（支持搜索、类型筛选、日期范围筛选、分页）"""
     try:
         page = int(request.args.get('page', 1))
-        page_size = int(request.args.get('limit', 10))
+        page_size = int(request.args.get('page_size', request.args.get('limit', 10)))
         keyword = request.args.get('keyword', '')
         work_type = request.args.get('work_type', '')
         start_date = request.args.get('start_date', '')
@@ -805,7 +806,7 @@ def get_my_diaries(payload):
     """获取当前用户的日记列表"""
     try:
         page = int(request.args.get('page', 1))
-        page_size = int(request.args.get('limit', 10))
+        page_size = int(request.args.get('page_size', request.args.get('limit', 10)))
         keyword = request.args.get('keyword', '')
         work_type = request.args.get('work_type', '')
         start_date = request.args.get('start_date', '')
@@ -939,7 +940,7 @@ def get_region_stats(payload):
             SELECT region, COUNT(*) as count FROM personnel
             WHERE region != '' GROUP BY region ORDER BY count DESC
         ''')
-        stats = [dict(r) for r in cursor.fetchall()]
+        stats = [{'name': dict(r)['region'], 'value': dict(r)['count']} for r in cursor.fetchall()]
 
         conn.close()
         return jsonify({'code': 20000, 'data': stats})
@@ -968,11 +969,18 @@ def get_policy_stats(payload):
         ''')
         status_stats = [dict(r) for r in cursor.fetchall()]
 
+        CATEGORY_LABELS = {
+            'visa': '签证政策', 'residence': '居留政策', 'employment': '就业政策',
+            'education': '教育政策', 'investment': '投资政策', 'social': '社会保障'
+        }
+        chart_data = []
+        for item in category_stats:
+            cat = item.get('category', '')
+            label = CATEGORY_LABELS.get(cat, cat)
+            chart_data.append({'name': label, 'value': item['count']})
+
         conn.close()
-        return jsonify({'code': 20000, 'data': {
-            'category_stats': category_stats,
-            'status_stats': status_stats
-        }})
+        return jsonify({'code': 20000, 'data': chart_data})
     except Exception as e:
         logger.error(f'❌ 获取政策统计失败: {str(e)}')
         return jsonify({'code': 50000, 'message': f'获取政策统计失败: {str(e)}'}), 500
@@ -1004,12 +1012,18 @@ def get_activity_stats(payload):
         ''')
         recent = [dict(r) for r in cursor.fetchall()]
 
+        TYPE_LABELS = {
+            'summit': '峰会论坛', 'exchange': '交流活动', 'internship': '实习计划',
+            'cultural': '文化交流', 'symposium': '学术研讨', 'social': '社交联谊'
+        }
+        chart_data = []
+        for item in type_stats:
+            t = item.get('activity_type', '')
+            label = TYPE_LABELS.get(t, t)
+            chart_data.append({'name': label, 'value': item['count']})
+
         conn.close()
-        return jsonify({'code': 20000, 'data': {
-            'type_stats': type_stats,
-            'status_stats': status_stats,
-            'recent_activities': recent
-        }})
+        return jsonify({'code': 20000, 'data': chart_data})
     except Exception as e:
         logger.error(f'❌ 获取活动统计失败: {str(e)}')
         return jsonify({'code': 50000, 'message': f'获取活动统计失败: {str(e)}'}), 500
@@ -1059,12 +1073,26 @@ def get_diary_stats(payload):
         total_count = dict(cursor.fetchone())['count']
 
         conn.close()
+        
+        # 转换为前端饼图需要的格式 [{name, value}]
+        WORK_TYPE_LABELS = {
+            'daily': '日常工作', 'meeting': '会议记录', 'research': '调研报告',
+            'visit': '外出走访', 'training': '学习培训', 'other': '其他'
+        }
+        chart_data = []
+        for item in type_stats:
+            wt = item.get('work_type', '')
+            label = WORK_TYPE_LABELS.get(wt, wt)
+            chart_data.append({'name': label, 'value': item['count']})
+        
         return jsonify({'code': 20000, 'data': {
             'type_stats': type_stats,
             'status_stats': status_stats,
             'recent_diaries': recent,
+            'recent': recent,
             'monthly_count': monthly_count,
-            'total_count': total_count
+            'total_count': total_count,
+            'chart_data': chart_data
         }})
     except Exception as e:
         logger.error(f'❌ 获取日记统计失败: {str(e)}')
