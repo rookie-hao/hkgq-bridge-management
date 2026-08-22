@@ -4,7 +4,7 @@ services:
     env: python
     buildCommand: |
       pip install -r requirements.txt
-      npm install
+      npm install --include=dev
       npm run build:prod
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120
     envVars:
