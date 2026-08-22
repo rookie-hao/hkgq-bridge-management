@@ -2684,7 +2684,7 @@
       loadChatModels: function() {
         var self = this;
         axios.get(API_PREFIX + '/chat/models', {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+          headers: { 'Authorization': 'Bearer ' + getToken() }
         }).then(function(res) {
           if (res.data && res.data.data) {
             self.chatModels = res.data.data;
@@ -2706,7 +2706,7 @@
         this.chatConversationId = 'conv_' + Date.now();
         var self = this;
         axios.post(API_PREFIX + '/chat/clear', { conversation_id: this.chatConversationId }, {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+          headers: { 'Authorization': 'Bearer ' + getToken() }
         }).catch(function() {});
       },
 
@@ -2744,7 +2744,7 @@
           files: filesData,
           mentions: this.activeMentions
         }, {
-          headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+          headers: { 'Authorization': 'Bearer ' + getToken() },
           timeout: 60000
         }).then(function(res) {
           var replyContent = '';
@@ -2881,7 +2881,7 @@
             formData.append('file', file);
             axios.post(API_PREFIX + '/chat/upload', formData, {
               headers: {
-                'Authorization': 'Bearer ' + localStorage.getItem('token'),
+                'Authorization': 'Bearer ' + getToken(),
                 'Content-Type': 'multipart/form-data'
               }
             }).then(function(res) {
