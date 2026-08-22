@@ -924,9 +924,14 @@ def get_dashboard_overview(payload):
         conn.close()
 
         # 统一转换为 {name, value} 格式供前端图表使用
-        CATEGORY_LABELS = {
+        POLICY_CATEGORY_LABELS = {
             'visa': '签证政策', 'residence': '居留政策', 'employment': '就业政策',
             'education': '教育政策', 'investment': '投资政策', 'social': '社会保障'
+        }
+        PERSONNEL_CATEGORY_LABELS = {
+            'entrepreneur': '企业家', 'scholar': '专家学者', 'representative': '代表人士',
+            'cultural': '文化人士', 'youth': '青年代表', 'community': '社团领袖',
+            '港澳台同胞': '港澳台同胞', '海外侨胞': '海外侨胞', '归国华侨': '归国华侨'
         }
 
         def to_chart_list(raw_list, key_field, label_map=None):
@@ -938,9 +943,9 @@ def get_dashboard_overview(payload):
             return result
 
         region_chart = to_chart_list(region_stats, 'region')
-        policy_chart = to_chart_list(policy_category_stats, 'category', CATEGORY_LABELS)
+        policy_chart = to_chart_list(policy_category_stats, 'category', POLICY_CATEGORY_LABELS)
         activity_chart = to_chart_list(activity_type_stats, 'activity_type')
-        personnel_chart = to_chart_list(personnel_category_stats, 'category')
+        personnel_chart = to_chart_list(personnel_category_stats, 'category', PERSONNEL_CATEGORY_LABELS)
         diary_chart = to_chart_list(diary_type_stats, 'work_type')
 
         logger.info('✅ 获取统计看板数据成功')
