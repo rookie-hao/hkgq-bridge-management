@@ -1813,7 +1813,7 @@
         profileSaving: false,
 
         // 图表实例
-        _charts: {},
+        chartInstances: {},
         systemConfigSaving: false,
         systemConfigForm: { system_name: "", system_subtitle: "", sidebar_title: "", logo_text: "", logo_image: "" },
         systemConfig: { system_name: "港澳台侨管库系统", system_subtitle: "Hong Kong, Macau, Taiwan & Overseas Chinese Management System", sidebar_title: "港澳台侨管库", logo_text: "侨", logo_image: "" },
@@ -2015,19 +2015,18 @@
         api.get(API_PREFIX + '/dashboard/overview').then(function(res) {
           if (res.code === 20000) {
             self.dashboardOverview = res.data || {};
-            // DOM 更新后用 overview 返回的图表数据直接渲染
-            self.$nextTick(function() {
-              var d = self.dashboardOverview;
-              if (typeof echarts !== 'undefined') {
-                if (d.region_chart && d.region_chart.length) self.renderRegionChart(d.region_chart);
-                if (d.policy_chart && d.policy_chart.length) self.renderPolicyChart(d.policy_chart);
-                if (d.activity_chart && d.activity_chart.length) self.renderActivityChart(d.activity_chart);
-                if (d.personnel_chart && d.personnel_chart.length) self.renderPersonnelChart(d.personnel_chart);
-                if (d.diary_chart && d.diary_chart.length) self.renderDiaryChart(d.diary_chart);
-              }
+            console.log('[Dashboard] overview loaded, chart data:', {
+              region: (self.dashboardOverview.region_chart || []).length,
+              policy: (self.dashboardOverview.policy_chart || []).length,
+              activity: (self.dashboardOverview.activity_chart || []).length,
+              personnel: (self.dashboardOverview.personnel_chart || []).length,
+              diary: (self.dashboardOverview.diary_chart || []).length
             });
+            // 用 setTimeout 确保 DOM 完全渲染后再画图表
+            setTimeout(function() { self.renderAllCharts(self.dashboardOverview); }, 150);
           }
-        }).catch(function() {
+        }).catch(function(err) {
+          console.error('[Dashboard] overview API error:', err);
           self.dashboardOverview = { personnel_count: 0, policy_count: 0, activity_count: 0, user_count: 0 };
         });
 
@@ -2039,6 +2038,27 @@
         }).catch(function() {
           self.recentDiaryList = [];
         });
+      },
+
+      renderAllCharts: function(d) {
+        if (typeof echarts === 'undefined') {
+          console.warn('[Charts] echarts not loaded, retrying in 500ms');
+          var self = this;
+          setTimeout(function() { self.renderAllCharts(d); }, 500);
+          return;
+        }
+        console.log('[Charts] rendering with data keys:', Object.keys(d));
+        try {
+          if (d.region_chart && d.region_chart.length) this.renderRegionChart(d.region_chart);
+          if (d.policy_chart && d.policy_chart.length) this.renderPolicyChart(d.policy_chart);
+          if (d.activity_chart && d.activity_chart.length) this.renderActivityChart(d.activity_chart);
+          if (d.personnel_chart && d.personnel_chart.length) this.renderPersonnelChart(d.personnel_chart);
+          if (d.diary_chart && d.diary_chart.length) this.renderDiaryChart(d.diary_chart);
+        } catch(e) {
+          console.error('[Charts] render error:', e);
+        }
+        // 触发 resize 确保图表自适应容器
+        setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 50);
       },
 
       loadDashboardCharts: function() {
@@ -2097,10 +2117,11 @@
 
       renderRegionChart: function(data) {
         var self = this;
-        if (!this.$refs.regionChart) return;
-        if (this._charts.region) this._charts.region.dispose();
+        if (!this.$refs.regionChart) { console.warn("[Chart] regionChart ref not found"); return; }
+        console.log("[Chart] rendering region, container size:", this.$refs.regionChart.offsetWidth, "x", this.$refs.regionChart.offsetHeight);
+        if (this.chartInstances.region) this.chartInstances.region.dispose();
         var chart = echarts.init(this.$refs.regionChart);
-        this._charts.region = chart;
+        this.chartInstances.region = chart;
         chart.setOption({
           tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
           legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
@@ -2120,10 +2141,11 @@
       },
 
       renderPolicyChart: function(data) {
-        if (!this.$refs.policyChart) return;
-        if (this._charts.policy) this._charts.policy.dispose();
+        if (!this.$refs.policyChart) { console.warn("[Chart] policyChart ref not found"); return; }
+        console.log("[Chart] rendering policy, container size:", this.$refs.policyChart.offsetWidth, "x", this.$refs.policyChart.offsetHeight);
+        if (this.chartInstances.policy) this.chartInstances.policy.dispose();
         var chart = echarts.init(this.$refs.policyChart);
-        this._charts.policy = chart;
+        this.chartInstances.policy = chart;
         chart.setOption({
           tooltip: { trigger: 'axis' },
           grid: { left: 60, right: 20, top: 20, bottom: 40 },
@@ -2143,10 +2165,11 @@
       },
 
       renderActivityChart: function(data) {
-        if (!this.$refs.activityChart) return;
-        if (this._charts.activity) this._charts.activity.dispose();
+        if (!this.$refs.activityChart) { console.warn("[Chart] activityChart ref not found"); return; }
+        console.log("[Chart] rendering activity, container size:", this.$refs.activityChart.offsetWidth, "x", this.$refs.activityChart.offsetHeight);
+        if (this.chartInstances.activity) this.chartInstances.activity.dispose();
         var chart = echarts.init(this.$refs.activityChart);
-        this._charts.activity = chart;
+        this.chartInstances.activity = chart;
         chart.setOption({
           tooltip: { trigger: 'axis' },
           grid: { left: 50, right: 20, top: 20, bottom: 40 },
@@ -2168,10 +2191,11 @@
       },
 
       renderPersonnelChart: function(data) {
-        if (!this.$refs.personnelChart) return;
-        if (this._charts.personnel) this._charts.personnel.dispose();
+        if (!this.$refs.personnelChart) { console.warn("[Chart] personnelChart ref not found"); return; }
+        console.log("[Chart] rendering personnel, container size:", this.$refs.personnelChart.offsetWidth, "x", this.$refs.personnelChart.offsetHeight);
+        if (this.chartInstances.personnel) this.chartInstances.personnel.dispose();
         var chart = echarts.init(this.$refs.personnelChart);
-        this._charts.personnel = chart;
+        this.chartInstances.personnel = chart;
         chart.setOption({
           tooltip: { trigger: 'item' },
           legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
@@ -2191,10 +2215,11 @@
       },
 
       renderDiaryChart: function(data) {
-        if (!this.$refs.diaryChart) return;
-        if (this._charts.diary) this._charts.diary.dispose();
+        if (!this.$refs.diaryChart) { console.warn("[Chart] diaryChart ref not found"); return; }
+        console.log("[Chart] rendering diary, container size:", this.$refs.diaryChart.offsetWidth, "x", this.$refs.diaryChart.offsetHeight);
+        if (this.chartInstances.diary) this.chartInstances.diary.dispose();
         var chart = echarts.init(this.$refs.diaryChart);
-        this._charts.diary = chart;
+        this.chartInstances.diary = chart;
         chart.setOption({
           tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
           legend: { orient: 'vertical', right: 10, top: 'center', textStyle: { fontSize: 12 } },
