@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ systemConfig.system_name }}</title>
-  <link rel="stylesheet" href="https://unpkg.com/element-ui@2.15.14/lib/theme-chalk/index.css">
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/element-ui/2.15.14/theme-chalk/index.css">
   <style>
     /* ========== 全局样式 ========== */
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1646,10 +1646,16 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/vue@2.7.16/dist/vue.min.js"></script>
-<script src="https://unpkg.com/element-ui@2.15.14/lib/index.js"></script>
-<script src="https://unpkg.com/axios@1.7.9/dist/axios.min.js"></script>
-<script src="https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/vue/2.7.16/vue.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/element-ui/2.15.14/index.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/axios/1.7.9/axios.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.1/echarts.min.js"></script>
+<script>
+// ECharts CDN 降级：如果 bootcdn 没加载成功，尝试 unpkg
+if (typeof echarts === 'undefined') {
+  document.write('<script src="https://unpkg.com/echarts@5.5.1/dist/echarts.min.js"><\/script>');
+}
+</script>
 <script>
 (function() {
   'use strict';
@@ -2025,8 +2031,10 @@
               personnel: (self.dashboardOverview.personnel_chart || []).length,
               diary: (self.dashboardOverview.diary_chart || []).length
             });
-            // 用 setTimeout 确保 DOM 完全渲染后再画图表
-            setTimeout(function() { self.renderAllCharts(self.dashboardOverview); }, 150);
+            // 等待 DOM 就绪后再画图表（轮询确保 ref 存在且容器有尺寸）
+            self.waitForChartDom(function() {
+              self.renderAllCharts(self.dashboardOverview);
+            });
           }
         }).catch(function(err) {
           console.error('[Dashboard] overview API error:', err);
@@ -2043,6 +2051,31 @@
         });
       },
 
+      // 轮询等待图表容器 DOM 就绪且有实际尺寸
+      waitForChartDom: function(callback, attempts) {
+        attempts = attempts || 0;
+        var el = this.$refs.regionChart;
+        if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
+          console.log('[Charts] DOM ready after', attempts * 50, 'ms, size:', el.offsetWidth, 'x', el.offsetHeight);
+          callback();
+          return;
+        }
+        if (attempts >= 40) {
+          console.error('[Charts] DOM not ready after 2s, refs:', {
+            region: !!this.$refs.regionChart,
+            policy: !!this.$refs.policyChart,
+            activity: !!this.$refs.activityChart,
+            personnel: !!this.$refs.personnelChart,
+            diary: !!this.$refs.diaryChart
+          });
+          // 即使容器没尺寸也尝试渲染一次
+          callback();
+          return;
+        }
+        var self = this;
+        setTimeout(function() { self.waitForChartDom(callback, attempts + 1); }, 50);
+      },
+
       renderAllCharts: function(d) {
         if (typeof echarts === 'undefined') {
           console.warn('[Charts] echarts not loaded, retrying in 500ms');
@@ -2051,6 +2084,16 @@
           return;
         }
         console.log('[Charts] rendering with data keys:', Object.keys(d));
+        // 检查所有 ref 是否存在
+        var refs = ['regionChart', 'policyChart', 'activityChart', 'personnelChart', 'diaryChart'];
+        for (var i = 0; i < refs.length; i++) {
+          if (!this.$refs[refs[i]]) {
+            console.warn('[Charts] ref not found:', refs[i], '- will retry');
+            var self2 = this;
+            setTimeout(function() { self2.renderAllCharts(d); }, 200);
+            return;
+          }
+        }
         try {
           if (d.region_chart && d.region_chart.length) this.renderRegionChart(d.region_chart);
           if (d.policy_chart && d.policy_chart.length) this.renderPolicyChart(d.policy_chart);
@@ -2061,7 +2104,7 @@
           console.error('[Charts] render error:', e);
         }
         // 触发 resize 确保图表自适应容器
-        setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 50);
+        setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 100);
       },
 
       loadDashboardCharts: function() {
@@ -2141,6 +2184,7 @@
             data: data
           }]
         });
+        setTimeout(function() { chart.resize(); }, 100);
         window.addEventListener('resize', function() { chart.resize(); });
       },
 
@@ -2166,6 +2210,7 @@
             ])}
           }]
         });
+        setTimeout(function() { chart.resize(); }, 100);
         window.addEventListener('resize', function() { chart.resize(); });
       },
 
@@ -2193,6 +2238,7 @@
             symbolSize: 8
           }]
         });
+        setTimeout(function() { chart.resize(); }, 100);
         window.addEventListener('resize', function() { chart.resize(); });
       },
 
@@ -2218,6 +2264,7 @@
             data: data
           }]
         });
+        setTimeout(function() { chart.resize(); }, 100);
         window.addEventListener('resize', function() { chart.resize(); });
       },
 
@@ -2243,6 +2290,7 @@
             data: data
           }]
         });
+        setTimeout(function() { chart.resize(); }, 100);
         window.addEventListener('resize', function() { chart.resize(); });
       },
 
